@@ -18,7 +18,7 @@ import type { VerifiedPerson } from './verifier/pid.js'
 import type { VerifiedLicence } from './verifier/mdoc.js'
 import { lookupLicence } from './register.js'
 import {
-  createSignRequest, euSigning, getSigning, handleEuSignResponse, handleSignResponse, signDocument, signRequestObject,
+  createSignRequest, euSigning, euSignResponsePath, getSigning, handleEuSignResponse, handleSignResponse, signDocument, signRequestObject,
   sweepSessions as sweepSignings
 } from './signing/signing.js'
 import { inspectRequest, present, signDocument as simSign } from './simwallet/simWallet.js'
@@ -491,10 +491,16 @@ app.get(['/sign/document/:id', '/da/document/:id'], (req, res) => {
   res.type('application/pdf').send(pdf)
 })
 
-// EU-Referenz-Wallet: Antwort an die URI im Zugangszertifikat (https://<host>/#/…, das Fragment fällt weg)
-app.post('/', (req, res) => {
-  const r = handleEuSignResponse(req.body ?? {})
-  res.status(r.status).json(r.body)
+// EU-Referenz-Wallet: Antwort an die URI im Zugangszertifikat (die beim Registrar eingetragene Support-Adresse).
+// POST dorthin = signiertes Dokument; GET (Support-Seite für Menschen) leitet zum Leitfaden.
+app.use((req, res, next) => {
+  if (req.method !== 'POST' && req.method !== 'GET') return next()
+  euSignResponsePath().then((p) => {
+    if (!p || p === '/' || req.path !== p) return next()
+    if (req.method === 'GET') return res.redirect(302, `${BASE_PATH}/#/leitfaden`)
+    const r = handleEuSignResponse(req.body ?? {})
+    res.status(r.status).json(r.body)
+  }, next)
 })
 
 app.post(['/sign/response/:id', '/da/response/:id'], (req, res) => {

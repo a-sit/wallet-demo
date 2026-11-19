@@ -24,7 +24,7 @@ let server: ChildProcess
 const euDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eu-access-'))
 function makeEuAccess() {
   const run = (...args: string[]) => execFileSync('openssl', args, { stdio: 'ignore' })
-  run('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-subj', '/CN=Testamt/O=Testamt/C=AT', '-addext', `subjectAltName=URI:${BASE}/\\#/leitfaden`, '-keyout', path.join(euDir, 'k.pem'), '-out', path.join(euDir, 'c.pem'), '-days', '1')
+  run('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-subj', '/CN=Testamt/O=Testamt/C=AT', '-addext', `subjectAltName=URI:${BASE}/leitfaden`, '-keyout', path.join(euDir, 'k.pem'), '-out', path.join(euDir, 'c.pem'), '-days', '1')
   run('pkcs12', '-export', '-inkey', path.join(euDir, 'k.pem'), '-in', path.join(euDir, 'c.pem'), '-passout', 'pass:test', '-out', path.join(euDir, 'wrpac.p12'))
   fs.writeFileSync(path.join(euDir, 'wrpac.password'), 'test')
   fs.writeFileSync(path.join(euDir, 'wrprc.jwt'), 'eyJ0eXAiOiJyYy13cnArand0In0.e30.test')
@@ -393,9 +393,11 @@ test('EU-Profil beim Signieren: eudi-rqes, x509_san_uri, Antwort an die URI im Z
   assert.equal(cfg.eudi.sign, true)
   const doc = await post('/api/documents/sample')
   const s = await post(`/api/documents/${doc.id}/sign`, { wallet_profile: 'eudi' })
-  const sanUri = `${BASE}/#/leitfaden`
+  const sanUri = `${BASE}/leitfaden`
   assert.match(s.deepLink, /^eudi-rqes:\/\/\?request_uri=/)
   assert.equal(new URL(s.deepLink.replace(/^eudi-rqes:\/\/\?/, 'https://x/?')).searchParams.get('client_id'), sanUri)
+  // wie die Wallet: ganzen Link dekodieren (Uri.decode), dann zerlegen – client_id muss gleich bleiben
+  assert.equal(new URL(decodeURIComponent(s.deepLink).replace(/^eudi-rqes:\/\/\?/, 'https://x/?')).searchParams.get('client_id'), sanUri)
   const jwt = await (await fetch(requestUri(s.deepLink))).text()
   const ro = jwtPayload(jwt)
   const certDer = new crypto.X509Certificate(fs.readFileSync(path.join(euDir, 'c.pem'))).raw
@@ -404,8 +406,9 @@ test('EU-Profil beim Signieren: eudi-rqes, x509_san_uri, Antwort an die URI im Z
   assert.equal(ro.client_id, sanUri)
   assert.equal(ro.response_uri, sanUri)
 
-  // fremder state an die gemeinsame Adresse: abgewiesen, Sitzung bleibt offen
-  assert.equal((await fetch(`${BASE}/`, form({ state: 'falsch', error: 'access_denied' }))).status, 400)
+  // fremder state an die gemeinsame Adresse: abgewiesen, Sitzung bleibt offen; GET dort = Support-Seite
+  assert.equal((await fetch(sanUri, form({ state: 'falsch', error: 'access_denied' }))).status, 400)
+  assert.equal((await fetch(sanUri, { redirect: 'manual' })).headers.get('location'), '/#/leitfaden')
   assert.notEqual((await get(`/api/documents/${doc.id}/status`)).state, 'FAILED')
 
   assert.equal((await fetch(`${BASE}/api/sim/sign`, json({ deepLink: s.deepLink, approve: true }))).status, 202)

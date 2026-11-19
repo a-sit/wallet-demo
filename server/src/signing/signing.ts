@@ -16,8 +16,11 @@ import type { ProtocolEvent } from '../events.js'
  *
  * Profil eudi (EU-Referenz-Wallet, „Document Retrieval“): Deep-Link eudi-rqes://, Request Object mit dem
  * Zugangszertifikat (WRPAC) signiert, client_id_scheme x509_san_uri. Die Wallet verlangt, dass client_id
- * und response_uri genau der URI im SAN des Zertifikats entsprechen – die Antwort kommt daher an diese
- * Adresse (ohne #-Fragment: POST /) und wird über state der Sitzung zugeordnet.
+ * und response_uri genau der URI im SAN des Zertifikats entsprechen (beim Launchpad-Registrar: die
+ * Support-Adresse). Die Antwort kommt daher per POST an diese Adresse und wird über state zugeordnet.
+ *
+ * Die URI darf weder #, ? noch & enthalten: Die Wallet dekodiert den ganzen Deep-Link, bevor sie ihn
+ * zerlegt (Uri.decode), ein %23 in client_id wird so zum Fragment und die client_id passt nicht mehr.
  */
 
 export type SignProfile = 'standard' | 'eudi'
@@ -26,9 +29,16 @@ export type SignProfile = 'standard' | 'eudi'
 export async function euSigning(): Promise<(EuAccess & { sanUri: string }) | undefined> {
   const eu = await loadEuAccess().catch(() => undefined)
   if (!eu?.sanUri) return undefined
-  return new URL(eu.sanUri).origin === new URL(PUBLIC_URL).origin && new URL(eu.sanUri).pathname === '/'
+  const u = new URL(eu.sanUri)
+  return u.origin === new URL(PUBLIC_URL).origin && !/[#?&%]/.test(eu.sanUri)
     ? (eu as EuAccess & { sanUri: string })
     : undefined
+}
+
+/** Pfad, an den die EU-Referenz-Wallet das signierte Dokument sendet (aus der SAN-URI) */
+export async function euSignResponsePath() {
+  const eu = await euSigning()
+  return eu && new URL(eu.sanUri).pathname
 }
 
 export type SigningState = 'WAITING_FOR_WALLET' | 'WALLET_CONNECTED' | 'SIGNING' | 'COMPLETED' | 'FAILED' | 'EXPIRED'
@@ -120,7 +130,7 @@ export function signDocument(id: string) {
   return s.pdf
 }
 
-/** EU-Profil: Antwort an die SAN-URI (POST /), Zuordnung nur über state */
+/** EU-Profil: Antwort an die SAN-URI, Zuordnung nur über state */
 export function handleEuSignResponse(body: Record<string, unknown>) {
   const state = typeof body?.state === 'string' ? body.state : undefined
   const s = state ? [...sessions.values()].find((x) => x.profile === 'eudi' && x.state === state) : undefined

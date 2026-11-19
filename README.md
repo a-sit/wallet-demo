@@ -69,8 +69,10 @@ PID und mDL aus der EU-Testumgebung gelten als vertrauenswürdig, wenn ihr Ausst
 Die Wallet nutzt dafür ihre RQES-Bibliothek („Document Retrieval", Deep-Link `eudi-rqes://`, in der App „Sign document" →
 „Scan QR"). Sie kennt dort nur `client_id_scheme` `x509_san_uri` und verlangt, dass `client_id` und `response_uri` genau der
 URI im SAN des Zugangszertifikats entsprechen und das Zertifikat von einer EU-PID-CA stammt. Beim Launchpad-WRPAC ist das
-die angegebene Support-Adresse (`https://<host>/#/…`); die Wallet sendet das signierte PDF deshalb per `POST /` (ohne
-Fragment), der Server ordnet es über `state` zu. Angeboten wird das nur, wenn diese URI zur `PUBLIC_URL` passt.
+die eingetragene Support-Adresse, hier `https://<host>/leitfaden`: Die Wallet sendet das signierte PDF per POST dorthin,
+der Server ordnet es über `state` zu; ein GET leitet zum Leitfaden. Die Adresse darf kein `#`, `?` oder `&` enthalten –
+die Wallet dekodiert den ganzen Deep-Link vor dem Zerlegen, ein `%23` in `client_id` würde zum Fragment. Angeboten wird
+das nur, wenn diese URI zur `PUBLIC_URL` passt.
 Signiert wird beim Test-QTSP der EU („Wallet-Centric"), die Anmeldung dort erfolgt mit der EU-PID.
 
 ## Öffentlicher Betrieb (https://wallet-demo.a-sit.at/)
