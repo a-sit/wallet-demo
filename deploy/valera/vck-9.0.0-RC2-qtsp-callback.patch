@@ -1,0 +1,14 @@
+diff --git a/vck-openid/src/commonMain/kotlin/at/asitplus/wallet/lib/openid/OpenId4VpProtocolClient.kt b/vck-openid/src/commonMain/kotlin/at/asitplus/wallet/lib/openid/OpenId4VpProtocolClient.kt
+index 197814f..cd1223d 100644
+--- a/vck-openid/src/commonMain/kotlin/at/asitplus/wallet/lib/openid/OpenId4VpProtocolClient.kt
++++ b/vck-openid/src/commonMain/kotlin/at/asitplus/wallet/lib/openid/OpenId4VpProtocolClient.kt
+@@ -167,6 +167,9 @@ class OpenId4VpProtocolClient(
+     }.getOrNull()?.redirectUri?.ifEmpty { null }
+ 
+     private fun String.requireHttpsUri(): String {
++        // PATCH (Wallet-Signatur-PoC): den eigenen App-Callback der Wallet zulassen. Der QTSP auf
++        // apps.egiz.gv.at antwortet im Signaturablauf mit redirect_uri = asitplus-wallet://wallet.a-sit.plus/app/callback/…
++        if (startsWith("asitplus-wallet://wallet.a-sit.plus/app/callback/")) return this
+         val uri = catchingUnwrapped { Rfc3986UriReference(this) }.getOrNull()
+         require(
+             uri is Rfc3986UniformResourceIdentifier

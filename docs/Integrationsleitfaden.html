@@ -1,0 +1,908 @@
+<meta charset="utf-8">
+<title>EUDI-Wallet-Signatur Integrationsleitfaden</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: Behörden-Handbuch – feste Inhaltsspalte links, Lesespalte ~68ch, Tabellen dürfen breiter scrollen */
+:root {
+  --paper: #f6f8fb;
+  --sheet: #ffffff;
+  --ink: #16202e;
+  --muted: #566274;
+  --rule: #dbe2ec;
+  --accent: #1f4fa3;      /* Amtsblau */
+  --accent-soft: #e8eefa;
+  --seal: #b4372f;        /* Siegelrot, sparsam */
+  --code-bg: #eef2f7;
+  --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f141c; --sheet: #151c27; --ink: #e4e9f1; --muted: #9aa6b8; --rule: #2a3444;
+    --accent: #8db0f0; --accent-soft: #1c2a44; --seal: #e7776d; --code-bg: #1b2433; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f141c; --sheet: #151c27; --ink: #e4e9f1; --muted: #9aa6b8; --rule: #2a3444;
+  --accent: #8db0f0; --accent-soft: #1c2a44; --seal: #e7776d; --code-bg: #1b2433; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--paper); color: var(--ink);
+  font: 16px/1.7 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.shell { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 56px; padding-block: 48px 96px; }
+@media (max-width: 900px) { .shell { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-block: 24px 64px; } }
+
+/* Inhaltsverzeichnis */
+nav.toc { position: sticky; top: calc(24px + env(safe-area-inset-top, 0px)); align-self: start; font-size: 14px; }
+nav.toc .label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 12px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--rule); display: grid; gap: 2px; }
+nav.toc a { display: block; padding: 4px 0 4px 14px; margin-left: -1px; color: var(--muted); text-decoration: none; border-left: 2px solid transparent; line-height: 1.4; }
+nav.toc a:hover { color: var(--ink); }
+nav.toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+nav.toc .stamp { margin-top: 24px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+@media (max-width: 900px) {
+  nav.toc { position: static; background: var(--sheet); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+  nav.toc ol { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); border-left: 0; }
+  nav.toc a { padding-left: 0; border-left: 0; }
+  nav.toc .stamp { display: none; }
+}
+
+/* Kopf */
+header.cover { border-bottom: 1px solid var(--rule); padding-bottom: 28px; margin-bottom: 8px; }
+.eyebrow { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.eyebrow .seal { color: var(--seal); }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 4.4vw, 44px); line-height: 1.12; letter-spacing: -.01em; margin: 14px 0 20px; text-wrap: balance; max-width: 22ch; }
+.meta { display: grid; gap: 6px; font-size: 15px; color: var(--muted); max-width: 70ch; }
+.meta p { margin: 0; }
+.meta strong { color: var(--ink); }
+
+/* Lesetext */
+main { min-width: 0; }
+article > * { max-width: 70ch; }
+article > .table-wrap, article > figure, article > pre { max-width: none; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1.25; margin: 64px 0 12px; scroll-margin-top: 24px; text-wrap: balance; }
+h3 { font-size: 18px; font-weight: 600; margin: 40px 0 8px; scroll-margin-top: 24px; color: var(--ink); }
+h3::before { content: ""; display: inline-block; width: 8px; height: 8px; background: var(--accent); margin-right: 10px; vertical-align: 2px; }
+h4 { font-size: 16px; margin: 24px 0 6px; }
+p, li { color: var(--ink); }
+p { margin: 12px 0; }
+ul, ol { padding-left: 22px; margin: 12px 0; }
+li { margin: 4px 0; }
+a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+strong { font-weight: 600; }
+code { font-family: var(--font-mono); font-size: .86em; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+pre.code { background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; overflow-x: auto; font-size: 13.5px; line-height: 1.6; margin: 16px 0; }
+pre.code code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+blockquote { margin: 20px 0; padding: 14px 18px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; }
+blockquote p { margin: 4px 0; }
+
+.table-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--sheet); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; line-height: 1.55; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 600; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--code-bg); }
+th, td { padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { min-width: 150px; }
+
+figure.diagram { margin: 20px 0; padding: 16px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; overflow-x: auto; }
+figure.diagram pre.mermaid { margin: 0; background: none; display: flex; justify-content: center; min-width: 560px; }
+
+input[type="checkbox"] { accent-color: var(--accent); margin-right: 6px; }
+li:has(> input[type="checkbox"]) { list-style: none; margin-left: -22px; }
+
+footer.end { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--muted); max-width: 70ch; }
+</style>
+
+<div class="shell">
+  <nav class="toc" aria-label="Inhalt">
+    <div class="label">Inhalt</div>
+    <ol><li><a href="#1-auf-einen-blick">1. Auf einen Blick</a></li><li><a href="#2-rollen-und-architektur">2. Rollen und Architektur</a></li><li><a href="#3-ablauf-im-detail">3. Ablauf im Detail</a></li><li><a href="#4-schritt-für-schritt-integration">4. Schritt-für-Schritt-Integration</a></li><li><a href="#5-referenzimplementierung-dieser-poc">5. Referenzimplementierung (dieser PoC)</a></li><li><a href="#6-testumgebung-alles-auf-localhost">6. Testumgebung: alles auf localhost</a></li><li><a href="#7-grenzen-des-poc">7. Grenzen des PoC</a></li><li><a href="#8-sicherheit-und-datenschutz">8. Sicherheit und Datenschutz</a></li><li><a href="#9-ux-empfehlungen">9. UX-Empfehlungen</a></li><li><a href="#10-go-live-checkliste">10. Go-Live-Checkliste</a></li><li><a href="#11-häufige-fragen">11. Häufige Fragen</a></li><li><a href="#12-glossar">12. Glossar</a></li><li><a href="#13-referenzen">13. Referenzen</a></li></ol>
+    <p class="stamp">Blaupause aus dem PoC „Digitales Amt Musterland"<br>Getestet mit Valera 5.9.1</p>
+  </nav>
+  <main>
+    <header class="cover">
+      <div class="eyebrow"><span class="seal">Integrationsleitfaden</span><span>OpenID4VP · SD-JWT VC · ISO 18013-5 · CSC API 2.0</span></div>
+      <h1>Ausweisen und Signieren mit der EUDI Wallet</h1>
+      <div class="meta"><p><strong>Zielgruppe:</strong> Behörden, IT-Dienstleister und Fachverfahrens-Verantwortliche, die Identifizierung und qualifizierte Signatur mit der European Digital Identity Wallet (EUDIW) in ihre Online-Services einbauen wollen.</p>
+<p><strong>Grundlage:</strong> Proof of Concept „Digitales Amt Musterland&quot; mit drei Beteiligten: <strong>Behörden-Service</strong> (Verifier), <strong>EUDI Wallet</strong> und <strong>QTSP</strong>. Getestet mit der <a target="_blank" rel="noopener" href="https://github.com/a-sit-plus/valera/releases/tag/5.9.1">Valera Wallet 5.9.1</a> von A-SIT Plus. Der Behörden-Service läuft lokal (<code>localhost</code>) oder öffentlich hinter TLS.</p>
+<p><strong>Stand:</strong> November 2026</p>
+</div>
+    </header>
+    <article>
+<h2 id="1-auf-einen-blick">1. Auf einen Blick</h2><p>Mit eIDAS 2.0 (Verordnung (EU) 2024/1183) erhalten alle Bürger:innen eine EUDI Wallet. Sie kann zwei Dinge, die Behörden-Services unmittelbar nutzen können:</p>
+<ol>
+<li><strong>Ausweisen:</strong> Die Wallet legt Personenidentifizierungsdaten (PID) und optional den mobilen Führerschein (mDL) vor, kryptografisch geprüft und datensparsam. Formulare müssen nicht mehr abgetippt werden.</li>
+<li><strong>Unterschreiben:</strong> Die Wallet autorisiert eine <strong>qualifizierte elektronische Signatur (QES)</strong>. Sie ist der handschriftlichen Unterschrift rechtlich gleichgestellt (Art. 25 Abs. 2 eIDAS).</li>
+</ol>
+<p><strong>Was dieser PoC zeigt:</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Schritt</th>
+<th>Was passiert</th>
+<th>Standard</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1. Ausweisen</td>
+<td>Behörde fragt PID und (optional) mobilen Führerschein ab, Wallet legt beide in einem Schritt vor, Behörde prüft sie</td>
+<td>OpenID4VP 1.0, DCQL, SD-JWT VC, ISO 18013-5 (mDL)</td>
+</tr>
+<tr>
+<td>2. Antrag ergänzen</td>
+<td>Personen- und Führerscheindaten sind vorbefüllt und schreibgeschützt; nur Reiseziel und Zustellung werden gewählt</td>
+<td>–</td>
+</tr>
+<tr>
+<td>3. Dokument erzeugen</td>
+<td>Behörden-Service erzeugt das Antrags-PDF</td>
+<td>PDF/A, WYSIWYS</td>
+</tr>
+<tr>
+<td>4. Signieren</td>
+<td>Signaturanfrage mit Dokument-Hash, die Wallet lässt beim QTSP signieren</td>
+<td>OpenID4VP (<code>sign_response</code>), ETSI TS 119 432, CSC API 2.0</td>
+</tr>
+<tr>
+<td>5. Prüfen &amp; Einbringen</td>
+<td>Behörde prüft die PAdES-Signatur und nimmt den Antrag an</td>
+<td>PAdES (ETSI EN 319 142), ETSI EN 319 102-1</td>
+</tr>
+</tbody></table>
+</div><blockquote>
+<p><strong>Kernaussage für Entscheider:innen:</strong> Beide Wallet-Interaktionen folgen demselben Muster: <strong>Anfrage erzeugen → QR-Code zeigen → Antwort der Wallet entgegennehmen → prüfen.</strong> Die Behörde betreibt dafür nur ihren eigenen <strong>Behörden-Service</strong>. Er stellt beide Anfragen und prüft beide Antworten; die Signatur selbst erzeugt der QTSP im Auftrag der Wallet.</p>
+</blockquote>
+<h2 id="2-rollen-und-architektur">2. Rollen und Architektur</h2><figure class="diagram"><pre class="mermaid">flowchart LR
+    B([Bürger:in]) -- Browser --> S[Behörden-Service&lt;br/>Verifier]
+    B -- bedient --> W[EUDI Wallet&lt;br/>z. B. Valera]
+    S -. "① Identifizierungsanfrage" .-> W
+    W -- "② PID + mDL" --> S
+    S -. "③ Signaturanfrage + Dokument" .-> W
+    W -- "④ Autorisierung, Hash" --> Q[QTSP&lt;br/>Remote-QSCD]
+    Q -- "⑤ Signaturwert" --> W
+    W -- "⑥ signiertes PDF" --> S</pre></figure><div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Rolle</th>
+<th>Aufgabe</th>
+<th>Im PoC</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Behörden-Service</strong> (Verifier)</td>
+<td>Stellt die OpenID4VP-Anfrage für PID und mDL und prüft die Antwort; erzeugt das Dokument, stellt die Signaturanfrage, nimmt das signierte PDF entgegen und prüft die Signatur</td>
+<td><code>server/src/</code> (Identifizierung in <code>verifier/</code>, Signaturanfrage in <code>signing/</code>), Web-GUI</td>
+</tr>
+<tr>
+<td><strong>EUDI Wallet</strong></td>
+<td>Zeigt Anfragen an, legt PID und mDL vor, holt beim QTSP die Signatur ein</td>
+<td>Valera 5.9.1 oder eingebauter Simulator</td>
+</tr>
+<tr>
+<td><strong>QTSP</strong> (qualifizierter Vertrauensdiensteanbieter)</td>
+<td>Stellt das qualifizierte Zertifikat aus und erzeugt den Signaturwert (Remote-QSCD, CSC API)</td>
+<td>In der Wallet konfiguriert (siehe Abschnitt 7)</td>
+</tr>
+</tbody></table>
+</div><p><strong>Architekturprinzipien</strong></p>
+<ul>
+<li><strong>Alles, was die Wallet aufruft, gehört der Behörde:</strong> <code>request_uri</code>, <code>response_uri</code> und der Dokumentabruf liegen auf dem eigenen Host. Der Status muss nicht bei Dritten abgefragt werden.</li>
+<li><strong>Das Backend vertraut nur geprüften Daten:</strong> Personendaten im Antrag übernimmt der Server direkt aus der verifizierten PID, nicht aus dem Browser.</li>
+<li><strong>Kein Draht zum QTSP:</strong> Der Behörden-Service spricht nie mit dem QTSP. Die Wallet holt die Signatur ein und liefert das signierte Dokument zurück; welcher QTSP es war, steht im Zertifikat der Signatur.</li>
+</ul>
+<h2 id="3-ablauf-im-detail">3. Ablauf im Detail</h2><h3 id="3-1-ausweisen-pid-und-mdl">3.1 Ausweisen (PID und mDL)</h3><figure class="diagram"><pre class="mermaid">sequenceDiagram
+    autonumber
+    actor U as Bürger:in
+    participant S as Behörden-Service (Verifier)
+    participant W as EUDI Wallet
+
+    U->>S: „Mit Wallet ausweisen"
+    S->>S: Anfrage anlegen (nonce, state)
+    S-->>U: QR-Code / Deep-Link&lt;br/>openid4vp://?client_id=x509_san_dns:…&request_uri=…
+    U->>W: QR scannen
+    W->>S: GET request_uri
+    S-->>W: Request Object (JWS, x5c)&lt;br/>dcql_query, response_uri, nonce
+    W->>U: Anfragende Stelle + Attribute anzeigen
+    U->>W: Freigeben
+    W->>S: POST response_uri (vp_token, state)
+    S->>S: PID und mDL prüfen: Aussteller, Disclosures/Digests,&lt;br/>Key Binding bzw. Gerätesignatur
+    S-->>U: Formular vorbefüllt</pre></figure><h3 id="3-2-signieren-wallet-zentrierte-fernsignatur">3.2 Signieren (wallet-zentrierte Fernsignatur)</h3><figure class="diagram"><pre class="mermaid">sequenceDiagram
+    autonumber
+    actor U as Bürger:in
+    participant S as Behörden-Service (Verifier)
+    participant W as EUDI Wallet
+    participant Q as QTSP
+
+    U->>S: Dokument geprüft, „Signieren"
+    S->>S: Signaturanfrage anlegen (PDF, Hash)
+    S-->>U: QR-Code / Deep-Link&lt;br/>haip://?request_uri=…&client_id=…
+    U->>W: QR scannen
+    W->>S: GET request_uri
+    S-->>W: Request Object (sign_response,&lt;br/>documentDigests, documentLocations)
+    W->>S: GET documentLocations[0]
+    W->>U: Dokument + Hash anzeigen, QTSP wählen
+    U->>W: Zustimmen (Biometrie/PIN)
+    W->>Q: Anmeldung (OAuth2, Wallet-Präsentation),&lt;br/>CSC signHash
+    Q-->>W: Signaturwert
+    W->>S: POST response_uri (documentWithSignature)
+    S->>S: PAdES-Signatur prüfen</pre></figure><h2 id="4-schritt-für-schritt-integration">4. Schritt-für-Schritt-Integration</h2><h3 id="schritt-1-voraussetzungen-klären">Schritt 1 – Voraussetzungen klären</h3><p><strong>Organisatorisch</strong></p>
+<ul>
+<li><strong>Use-Case auswählen:</strong> Verfahren, die eine Identifizierung und eine Unterschrift verlangen (Anträge, Erklärungen, Vollmachten).</li>
+<li><strong>Registrierung als Wallet-Relying-Party:</strong> Vertrauende Parteien müssen sich im Mitgliedstaat registrieren (Durchführungsverordnung (EU) 2025/848). Sie erhalten ein <strong>Zugangszertifikat</strong> (WRPAC), mit dem sie ihre Anfragen signieren, und ein Registrierungszertifikat, das die erlaubten Attribute festlegt.</li>
+<li><strong>Datenminimierung:</strong> Nur die PID-Attribute anfragen, die das Verfahren wirklich braucht, und sie in der Registrierung angeben. Wallets warnen bei mehr angefragten Attributen.</li>
+<li><strong>QTSP-Frage klären:</strong> Im wallet-zentrierten Ablauf wählt die Wallet den QTSP. Dokumentieren Sie, welche QTSPs Ihre Zielgruppe nutzt.</li>
+<li><strong>Datenschutz:</strong> DSFA und Verarbeitungsverzeichnis um die PID-Verarbeitung ergänzen.</li>
+</ul>
+<p><strong>Technisch</strong></p>
+<ul>
+<li>HTTPS-Host mit DNS-Namen, der im SAN des Zugangszertifikats steht (<code>client_id = x509_san_dns:&lt;host&gt;</code>).</li>
+<li>Öffentlich erreichbare Endpunkte je Anfrage: <code>request_uri</code> (GET) und <code>response_uri</code> (POST), bei der Signatur zusätzlich der Dokumentabruf.</li>
+<li>Für die PID-Prüfung die Trust-Anker der PID-Provider (EU Trusted Lists), für die Signaturprüfung ein Validierungsdienst (z. B. EU DSS).</li>
+</ul>
+<h3 id="schritt-2-pid-und-mdl-anfragen">Schritt 2 – PID und mDL anfragen</h3><p>Der Behörden-Service erzeugt pro Vorgang <code>nonce</code> und <code>state</code> und signiert ein <strong>Request Object</strong> (JAR, RFC 9101) mit dem Zugangszertifikat:</p>
+<pre class="code"><code>{
+  "response_type": "vp_token",
+  "client_id": "x509_san_dns:amt.example.gv.at",
+  "response_mode": "direct_post",
+  "response_uri": "https://amt.example.gv.at/oid4vp/response/7f3c…",
+  "nonce": "Jx8n…",
+  "state": "c2e1…",
+  "dcql_query": {
+    "credentials": [{
+      "id": "pid",
+      "format": "dc+sd-jwt",
+      "meta": { "vct_values": ["urn:eudi:pid:1"] },
+      "claims": [
+        { "path": ["given_name"] }, { "path": ["family_name"] },
+        { "path": ["birthdate"] }, { "path": ["place_of_birth"] },
+        { "path": ["nationalities"] }, { "path": ["address"] }
+      ]
+    }, {
+      "id": "mdl",
+      "format": "mso_mdoc",
+      "meta": { "doctype_value": "org.iso.18013.5.1.mDL" },
+      "claims": [
+        { "path": ["org.iso.18013.5.1", "document_number"] },
+        { "path": ["org.iso.18013.5.1", "issuing_authority"] },
+        { "path": ["org.iso.18013.5.1", "driving_privileges"] },
+        { "path": ["org.iso.18013.5.1", "expiry_date"] }, …
+      ]
+    }],
+    "credential_sets": [
+      { "options": [["pid"]] },
+      { "options": [["mdl"]], "required": false }
+    ]
+  },
+  "client_metadata": {
+    "vp_formats_supported": {
+      "dc+sd-jwt": { "sd-jwt_alg_values": ["ES256"], "kb-jwt_alg_values": ["ES256"] },
+      "mso_mdoc": { "issuerauth_alg_values": [-7], "deviceauth_alg_values": [-7] }
+    }
+  }
+}</code></pre><p>Die PID ist Pflicht, der mobile Führerschein (mDL) optional (<code>required: false</code>). Fehlt er, ermittelt die Behörde Führerscheinnummer, ausstellende Behörde und Klassen selbst aus dem Führerscheinregister.</p>
+<p>JWS-Header: <code>{&quot;alg&quot;:&quot;ES256&quot;,&quot;typ&quot;:&quot;oauth-authz-req+jwt&quot;,&quot;x5c&quot;:[&quot;&lt;Zugangszertifikat&gt;&quot;]}</code></p>
+<p>Wallet-Aufruf als QR-Code und Deep-Link:</p>
+<pre class="code"><code>openid4vp://?client_id=x509_san_dns%3Aamt.example.gv.at&amp;request_uri=https%3A%2F%2Famt.example.gv.at%2Foid4vp%2Frequest%2F7f3c…&amp;request_uri_method=get</code></pre><p><code>request_uri_method=get</code> ist der Standard und könnte entfallen; der PoC setzt ihn ausdrücklich. Bei <code>post</code> schickt die Wallet ihre <code>wallet_metadata</code> und eine <code>wallet_nonce</code> an die <code>request_uri</code>; der Verifier spiegelt die <code>wallet_nonce</code> im Request Object zurück.</p>
+<blockquote>
+<p>Die Wallet prüft dabei, ob die Anfrage gültig signiert ist, ob der Hostname der <code>client_id</code> im Zertifikat steht und ob die <code>response_uri</code> auf denselben Host zeigt. Ein falsch konfigurierter Host ist der häufigste Integrationsfehler.</p>
+</blockquote>
+<h3 id="schritt-3-antwort-prüfen-pid-und-mdl">Schritt 3 – Antwort prüfen (PID und mDL)</h3><p>Die Wallet sendet per <code>direct_post</code> (form-urlencoded) <code>vp_token</code> und <code>state</code>. Bei OpenID4VP 1.0 ist <code>vp_token</code> ein JSON-Objekt <code>{&quot;pid&quot;: [&quot;&lt;SD-JWT-Präsentation&gt;&quot;], &quot;mdl&quot;: [&quot;&lt;DeviceResponse, base64url&gt;&quot;]}</code>.</p>
+<p>Prüfungen für die PID (<code>server/src/verifier/sdjwt.ts</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Prüfung</th>
+<th>Zweck</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>state</code> passt zur Sitzung, Sitzung ist noch offen</td>
+<td>Antwort gehört zu dieser Anfrage; ein abgeschlossener Vorgang wird nicht überschrieben</td>
+</tr>
+<tr>
+<td>Signatur des Ausstellers (x5c), Zertifikat zeitlich gültig</td>
+<td>PID ist echt und unverändert. Eine PID ohne prüfbare Ausstellersignatur wird abgelehnt.</td>
+</tr>
+<tr>
+<td>Aussteller vertrauenswürdig</td>
+<td>PID stammt von einem anerkannten PID-Provider. Produktiv: EU Trusted List. <strong>Im PoC: feste Liste</strong> der Aussteller-Zertifikate (<code>server/src/verifier/trust.ts</code>).</td>
+</tr>
+<tr>
+<td><code>vct = urn:eudi:pid:1</code>, <code>exp</code>, <code>nbf</code></td>
+<td>richtiger Typ, gültig</td>
+</tr>
+<tr>
+<td>Disclosures passen zu den <code>_sd</code>-Hashes</td>
+<td>nur echte Attribute werden übernommen</td>
+</tr>
+<tr>
+<td>Key-Binding-JWT: Signatur mit <code>cnf</code>-Schlüssel</td>
+<td>Präsentation kommt vom Gerät der Inhaber:in</td>
+</tr>
+<tr>
+<td>Key-Binding: <code>nonce</code>, <code>aud = client_id</code>, <code>sd_hash</code>, <code>iat</code></td>
+<td>kein Replay, für genau diesen Verifier</td>
+</tr>
+</tbody></table>
+</div><p>Prüfungen für den mDL (<code>server/src/verifier/mdoc.ts</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Prüfung</th>
+<th>Zweck</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IssuerAuth: COSE_Sign1 mit Zertifikat aus <code>x5chain</code></td>
+<td>mDL ist echt und unverändert</td>
+</tr>
+<tr>
+<td>Aussteller vertrauenswürdig</td>
+<td>mDL stammt von einer Führerscheinbehörde. Produktiv: Trust-Anker der Aussteller (IACA). <strong>Im PoC: feste Liste.</strong></td>
+</tr>
+<tr>
+<td><code>docType</code> und <code>validityInfo</code> des Mobile Security Object (MSO)</td>
+<td>richtiger Nachweis, gültig</td>
+</tr>
+<tr>
+<td>SHA-256 jedes <code>IssuerSignedItem</code> steht in <code>valueDigests</code></td>
+<td>nur echte Datenelemente werden übernommen</td>
+</tr>
+<tr>
+<td>DeviceAuth: Gerätesignatur über das SessionTranscript (<code>OpenID4VPHandover</code> aus <code>client_id</code>, <code>nonce</code>, <code>response_uri</code>)</td>
+<td>Präsentation kommt vom Gerät, kein Replay, für genau diesen Verifier</td>
+</tr>
+<tr>
+<td>Name und Geburtsdatum im mDL = PID</td>
+<td>beide Nachweise gehören zur selben Person</td>
+</tr>
+</tbody></table>
+</div><p>Danach bildet der Behörden-Service die Claims auf seine Daten ab (<code>given_name</code> → Vorname, <code>address.street_address</code> + <code>house_number</code> → Straße, <code>driving_privileges</code> → Klassen usw.) und <strong>übernimmt sie serverseitig in den Antrag</strong>.</p>
+<blockquote>
+<p><strong>Grundsatz:</strong> Daten, die die Behörde selbst vergibt oder führt (Führerscheinnummer, ausstellende Behörde, Klassen), werden nie von der Antragstellerin eingegeben – sie kommen geprüft aus der Wallet oder aus dem Register. Auch Kontaktdaten wie eine E-Mail-Adresse fragt der PoC nicht ab: Die Zustellung läuft über das Bürgerportal.</p>
+</blockquote>
+<h3 id="schritt-4-das-zu-signierende-dokument-erzeugen">Schritt 4 – Das zu signierende Dokument erzeugen</h3><ul>
+<li>Dokument <strong>serverseitig</strong> aus den Daten erzeugen, idealerweise als <strong>PDF/A</strong>.</li>
+<li>Genau dieses Dokument vor der Signatur anzeigen („What You See Is What You Sign&quot;).</li>
+<li>Den <strong>SHA-256-Hash</strong> berechnen. Er erscheint in der Wallet (<code>documentDigests</code>) und dient als Nachweis.</li>
+</ul>
+<h3 id="schritt-5-signaturanfrage-erstellen">Schritt 5 – Signaturanfrage erstellen</h3><p>Der Behörden-Service signiert ein Request Object, das statt Daten eine Signatur anfordert:</p>
+<pre class="code"><code>{
+  "response_type": "sign_response",
+  "client_id": "x509_san_dns:amt.example.gv.at",
+  "response_mode": "direct_post",
+  "response_uri": "https://amt.example.gv.at/sign/response/91ab…",
+  "nonce": "…",
+  "state": "…",
+  "signatureQualifier": "eu_eidas_qes",
+  "documentDigests": [{ "hash": "FOtLnxtLPuMkX8v+zJGSOOMrQd/GiuboYeGif7dCrFk=", "label": "Antrag.pdf" }],
+  "documentLocations": [{ "uri": "https://amt.example.gv.at/sign/document/91ab…", "method": { "type": "public" } }],
+  "hashAlgorithmOID": "2.16.840.1.101.3.4.2.1"
+}</code></pre><div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Erklärung</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>response_type: sign_response</code></td>
+<td>Signaturauftrag, keine Datenabfrage</td>
+</tr>
+<tr>
+<td><code>signatureQualifier: eu_eidas_qes</code></td>
+<td>Verlangt eine <strong>qualifizierte</strong> Signatur</td>
+</tr>
+<tr>
+<td><code>documentDigests</code></td>
+<td>Hash (Base64) und Bezeichnung jedes Dokuments</td>
+</tr>
+<tr>
+<td><code>documentLocations</code></td>
+<td>Wo die Wallet das Dokument lädt. <code>public</code> bedeutet ohne Zugangsschutz, daher die URL unratbar machen und zeitlich begrenzen</td>
+</tr>
+<tr>
+<td><code>hashAlgorithmOID</code></td>
+<td><code>2.16.840.1.101.3.4.2.1</code> = SHA-256</td>
+</tr>
+<tr>
+<td><code>response_uri</code></td>
+<td>Ziel für das signierte Dokument. <code>state</code> wird als Query-Parameter angehängt</td>
+</tr>
+</tbody></table>
+</div><p>Wallet-Aufruf: <code>haip://?request_uri=&lt;…/sign/createSignRequest/91ab…&gt;&amp;client_id=x509_san_dns%3Aamt.example.gv.at</code>.</p>
+<blockquote>
+<p><strong>Hinweis Valera:</strong> Die <code>request_uri</code> muss den Pfadbestandteil <code>createSignRequest</code> enthalten. Daran erkennt Valera einen von außen (Kamera, Browser) geöffneten Link als Signaturanfrage; sonst behandelt es ihn als normale Datenabfrage.</p>
+</blockquote>
+<h3 id="schritt-6-signiertes-dokument-entgegennehmen">Schritt 6 – Signiertes Dokument entgegennehmen</h3><p>Die Wallet postet an die <code>response_uri</code> (form-urlencoded) das Feld <code>documentWithSignature</code>. Es enthält ein JSON-Array mit Base64-kodierten, signierten PDFs. Der Behörden-Service prüft <code>state</code>, dekodiert das PDF und speichert es <strong>unverändert</strong>. Er nimmt nur die erste Antwort an: Ist der Vorgang abgeschlossen, lässt sich das signierte Dokument nicht mehr ersetzen.</p>
+<h3 id="schritt-7-signatur-prüfen">Schritt 7 – Signatur prüfen</h3><div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Prüfung</th>
+<th>Wie</th>
+<th>Im PoC</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Integrität</td>
+<td>Hash über <code>/ByteRange</code> = <code>messageDigest</code> im CMS</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Kryptografische Gültigkeit</td>
+<td>Signaturwert mit dem Zertifikatsschlüssel prüfen</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Vollständigkeit</td>
+<td><code>/ByteRange</code> deckt die ganze Datei ab</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Format</td>
+<td><code>SubFilter = ETSI.CAdES.detached</code> (PAdES)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Qualifiziertes Zertifikat</td>
+<td>QCStatement <code>QcCompliance</code> (0.4.0.1862.1.1)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>QSCD</td>
+<td>QCStatement <code>QcSSCD</code> (0.4.0.1862.1.4)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Kette zur EU Trusted List, Sperrstatus</td>
+<td>OCSP/CRL, Trusted List</td>
+<td>➜ Validierungsdienst</td>
+</tr>
+<tr>
+<td>Identität</td>
+<td>Unterzeichner:in = ausgewiesene Person (Name, Geburtsdatum aus der PID)</td>
+<td>fachlich</td>
+</tr>
+</tbody></table>
+</div><p>Der Behörden-Service prüft die Signatur beim Einbringen selbst noch einmal und verlässt sich nicht auf die Anzeige im Browser.</p>
+<p>Empfohlen für den Produktivbetrieb: <a target="_blank" rel="noopener" href="https://github.com/esig/dss">EU DSS</a> als eigener Dienst, für manuelle Kontrollen die <a target="_blank" rel="noopener" href="https://www.signaturpruefung.gv.at/">RTR-Signaturprüfung</a>.</p>
+<h3 id="schritt-8-weiterverarbeiten-und-archivieren">Schritt 8 – Weiterverarbeiten und archivieren</h3><ul>
+<li>Signiertes PDF, Prüfprotokoll und PID-Prüfergebnis gemeinsam im Akt ablegen.</li>
+<li>Für Langzeitbeweiswert auf <strong>PAdES-B-LTA</strong> erweitern.</li>
+<li>Eingangsbestätigung mit Geschäftszahl und Dokument-Hash versenden.</li>
+</ul>
+<h2 id="5-referenzimplementierung-dieser-poc">5. Referenzimplementierung (dieser PoC)</h2><pre class="code"><code>Wallet-Signatur-PoC/
+├─ server/src/
+│  ├─ index.ts                  REST-API des Behörden-Service + Endpunkte für die Wallet
+│  ├─ config.ts                 PUBLIC_URL, client_id, Laufzeiten
+│  ├─ verifier/                 Identifizierung: OpenID4VP-Anfrage und Prüfung (PID und mDL)
+│  │  ├─ verifier.ts            Anfrage, Request Object, Antwortverarbeitung
+│  │  ├─ sdjwt.ts               SD-JWT-VC-Prüfung inkl. Key Binding
+│  │  ├─ mdoc.ts                mDL-Prüfung (ISO 18013-5, COSE, SessionTranscript)
+│  │  └─ pid.ts                 DCQL-Abfrage, Abbildung PID → Formular
+│  ├─ signing/signing.ts        Signaturanfrage an die Wallet, Entgegennahme des signierten PDF
+│  ├─ crypto/                   JWS-Hilfen, lokale Zertifikate (.data/)
+│  ├─ register.ts               Führerscheinregister (Stub, falls kein mDL vorgezeigt wird)
+│  ├─ simwallet/                Wallet-Simulator (Test-PID, Test-mDL, Test-Signatur)
+│  ├─ pdf.ts                    Antrags-PDF
+│  └─ validate.ts               PAdES-Prüfung
+├─ web/src/                     React-Oberfläche
+└─ docs/Integrationsleitfaden.md</code></pre><h3 id="endpunkte-die-die-wallet-aufruft">Endpunkte, die die Wallet aufruft</h3><div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Methode</th>
+<th>Pfad</th>
+<th>Zweck</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GET</code></td>
+<td><code>/oid4vp/request/:id</code></td>
+<td>Request Object der PID-Anfrage</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/oid4vp/request/:id</code></td>
+<td>Request Object bei <code>request_uri_method=post</code> (<code>wallet_nonce</code> wird zurückgespiegelt)</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/oid4vp/response/:id</code></td>
+<td><code>vp_token</code> der Wallet</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/sign/createSignRequest/:id</code></td>
+<td>Request Object der Signaturanfrage</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/sign/document/:id</code></td>
+<td>Zu signierendes Dokument</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/sign/response/:id</code></td>
+<td><code>documentWithSignature</code> der Wallet</td>
+</tr>
+</tbody></table>
+</div><h3 id="rest-api-des-behörden-service-browser-backend">REST-API des Behörden-Service (Browser → Backend)</h3><div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Methode</th>
+<th>Pfad</th>
+<th>Zweck</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>POST</code></td>
+<td><code>/api/identifications</code></td>
+<td>PID-Anfrage starten → Deep-Link + QR</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/identifications/:id</code></td>
+<td>Status, verifizierte PID, Prüfschritte</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/presentations</code></td>
+<td>Präsentationsanfrage mit eigenen Parametern (Transaktions-API, siehe unten)</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/presentations/:id</code></td>
+<td>wie <code>/api/identifications/:id</code></td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/applications</code></td>
+<td>Antrag anlegen (<code>identificationId</code> übernimmt die PID)</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/applications/:id/sign</code></td>
+<td>Signaturanfrage starten → Deep-Link + QR</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/applications/:id/status</code></td>
+<td>Signaturstatus + Protokoll</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/applications/:id/validation</code></td>
+<td>Prüfbericht der Signatur</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/applications/:id/submit</code></td>
+<td>Antrag einbringen</td>
+</tr>
+</tbody></table>
+</div><blockquote>
+<p><strong>Zwei Kennungen pro Vorgang:</strong> Die Kennung in <code>request_uri</code> und <code>response_uri</code> steht im QR-Code und ist für alle sichtbar, die ihn sehen (Beamer, Screenshot). Das Ergebnis mit den Personendaten gibt es deshalb nur über eine zweite Kennung, die allein der Behörden-Service kennt (<code>id</code> bzw. <code>transaction_id</code>).</p>
+</blockquote>
+<h3 id="transaktions-api-für-fachverfahren">Transaktions-API für Fachverfahren</h3><p><code>POST /api/presentations</code> nimmt die Parameter entgegen, wie man sie von Verifier-Backends kennt, und baut daraus das Request Object und den QR-Code. Alle Felder sind optional; ohne Body entspricht die Anfrage <code>/api/identifications</code>.</p>
+<pre class="code"><code>{
+  "nonce": "f1a24980-9535-4b31-bb67-52a9a9df35ef",
+  "profile": "openid4vp",
+  "request_uri_method": "get",
+  "authorization_request_uri": "openid4vp://",
+  "intended_use_id": "TEST-01",
+  "dcql_query": { "credentials": [ … ], "credential_sets": [ … ] }
+}</code></pre><div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Feld</th>
+<th>Bedeutung</th>
+<th>Standard</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>dcql_query</code></td>
+<td>DCQL-Abfrage. Der PoC kann nur <code>pid</code> (<code>dc+sd-jwt</code>, Pflicht) und <code>mdl</code> (<code>mso_mdoc</code>) prüfen.</td>
+<td>PID + optionaler mDL wie in Schritt 2</td>
+</tr>
+<tr>
+<td><code>nonce</code></td>
+<td>Nonce für Key Binding bzw. SessionTranscript, 16–128 URL-sichere Zeichen</td>
+<td>zufällige UUID</td>
+</tr>
+<tr>
+<td><code>profile</code></td>
+<td>nur <code>openid4vp</code> (HAIP mit verschlüsselter Antwort ist nicht umgesetzt)</td>
+<td><code>openid4vp</code></td>
+</tr>
+<tr>
+<td><code>request_uri_method</code></td>
+<td><code>get</code> oder <code>post</code></td>
+<td><code>get</code></td>
+</tr>
+<tr>
+<td><code>authorization_request_uri</code></td>
+<td>Schema bzw. Basis-URI des Wallet-Aufrufs, z. B. <code>openid4vp://</code>, <code>haip://</code> oder eine https-App-Link-URL</td>
+<td><code>openid4vp://</code></td>
+</tr>
+<tr>
+<td><code>intended_use_id</code></td>
+<td>Kennung des registrierten Verwendungszwecks. Wird protokolliert, aber nicht an die Wallet geschickt – dafür gibt es im Request noch keinen festgelegten Parameter.</td>
+<td>–</td>
+</tr>
+</tbody></table>
+</div><p>Antwort: <code>transaction_id</code>, <code>authorization_request_uri</code> (fertiger Deep-Link), <code>request_uri</code>, <code>nonce</code>, <code>qrSvg</code>, <code>expiresInSec</code>. Ungültige Parameter liefern <code>400</code> mit <code>error_description</code>. Den Status fragt das Fachverfahren über <code>GET /api/presentations/:transaction_id</code> ab.</p>
+<h3 id="wallet-simulator">Wallet-Simulator</h3><p>Für Präsentationen ohne Smartphone enthält der PoC einen Wallet-Simulator. Er ruft <strong>dieselben Protokoll-Endpunkte über HTTP</strong> auf wie eine echte Wallet. Er prüft das Request Object, legt eine Test-PID als SD-JWT VC mit Key Binding vor und signiert mit einem Testzertifikat. Damit wird der komplette Ablauf auch im Demo-Modus durchlaufen. Das Ergebnis ist <strong>keine QES</strong>.</p>
+<h2 id="6-testumgebung-alles-auf-localhost">6. Testumgebung: alles auf localhost</h2><p>Der Behörden-Service baut selbst keine Verbindung zu externen Diensten auf. Die Wallet am Smartphone erreicht ihn über <code>localhost</code>:</p>
+<figure class="diagram"><pre class="mermaid">flowchart LR
+    P[Android-Smartphone&lt;br/>Valera Debug-Build] -- "USB · adb reverse&lt;br/>localhost:3001" --> L[Laptop&lt;br/>PoC auf localhost:3001]
+    L -- "Browser localhost:5173" --> U([Bürger:in / Demo])</pre></figure><h3 id="warum-die-debug-apk">Warum die Debug-APK?</h3><p>Die Release-Version von Valera erlaubt nur HTTPS. Die <strong>Debug-Version</strong> erlaubt laut ihrer <code>network_security_config</code> unverschlüsseltes HTTP ausschließlich zu <code>localhost</code>. Genau das nutzt der PoC.</p>
+<h3 id="einrichtung">Einrichtung</h3><ol>
+<li><strong>Valera-Debug-APK</strong> von der <a target="_blank" rel="noopener" href="https://github.com/a-sit-plus/valera/releases/tag/5.9.1">Release-Seite</a> installieren (<code>valera-debug-5.9.1.apk</code>).</li>
+<li><strong>Test-PID (SD-JWT) und optional Test-mDL (ISO)</strong> in die Wallet laden, zum Beispiel über den Test-Issuer von A-SIT Plus. Das ist ein einmaliger Schritt, unabhängig vom PoC.</li>
+<li>Am Smartphone <strong>USB-Debugging</strong> aktivieren und das Gerät per Kabel verbinden.</li>
+<li>Am Laptop die Android Platform Tools installieren und den Port weiterleiten:</li>
+</ol>
+<pre class="code"><code>brew install android-platform-tools</code></pre><pre class="code"><code>adb reverse tcp:3001 tcp:3001</code></pre><ol start="5">
+<li>PoC starten und <a target="_blank" rel="noopener" href="http://localhost:5173">http://localhost:5173</a> öffnen, Modus <strong>„Valera-Smartphone&quot;</strong> wählen.</li>
+</ol>
+<pre class="code"><code>npm install &amp;&amp; npm run dev</code></pre><p>Alternativ funktioniert ein <strong>Android-Emulator</strong> mit derselben <code>adb reverse</code>-Weiterleitung.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Umgebungsvariable</th>
+<th>Standard</th>
+<th>Bedeutung</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>API_PORT</code></td>
+<td><code>3001</code></td>
+<td>Port von API und Wallet-Endpunkten</td>
+</tr>
+<tr>
+<td><code>PUBLIC_URL</code></td>
+<td><code>http://localhost:3001</code></td>
+<td>Basis-URL für <code>request_uri</code>/<code>response_uri</code>. Ihr Hostname ist die <code>client_id</code> und steht im SAN des Zertifikats</td>
+</tr>
+</tbody></table>
+</div><p>Die Zertifikate (Request-Signer, Test-PID-Aussteller) erzeugt der PoC beim ersten Start selbst und legt sie unter <code>.data/</code> ab.</p>
+<h3 id="fehlerbehebung">Fehlerbehebung</h3><div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Ursache / Lösung</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Wallet meldet Netzwerkfehler</td>
+<td><code>adb reverse</code> aktiv? <code>adb reverse --list</code> prüfen. Release-APK statt Debug-APK installiert?</td>
+</tr>
+<tr>
+<td>Wallet lehnt die Anfrage ab</td>
+<td>Hostname der <code>client_id</code> nicht im Zertifikat-SAN, z. B. nach Änderung von <code>PUBLIC_URL</code>. <code>.data/</code> löschen und neu starten</td>
+</tr>
+<tr>
+<td>PID-Prüfung schlägt bei „Key Binding&quot; fehl</td>
+<td>Uhrzeit von Laptop und Smartphone prüfen (<code>iat</code>)</td>
+</tr>
+<tr>
+<td>Status bleibt „Anfrage bereit&quot;</td>
+<td>QR mit der richtigen Funktion scannen bzw. Link von außen öffnen (siehe unten)</td>
+</tr>
+<tr>
+<td>Keine PID zur Auswahl</td>
+<td>Die PID wird als SD-JWT VC angefragt; eine PID nur im ISO-Format passt nicht</td>
+</tr>
+<tr>
+<td>Valera: „Signing callback received without an active signing flow&quot;</td>
+<td>Signatur-QR mit der <strong>Handy-Kamera</strong> (oder am Handy per Link) öffnen statt mit dem Scanner in Valera – in Valera 5.9.1 landen Start und Rücksprung vom QTSP sonst in verschiedenen Sitzungen</td>
+</tr>
+<tr>
+<td>Terminal zeigt keine <code>[wallet]</code>-Zeilen</td>
+<td>Die Wallet erreicht den PoC nicht (siehe erste Zeile)</td>
+</tr>
+</tbody></table>
+</div><h3 id="öffentlicher-betrieb">Öffentlicher Betrieb</h3><p>Für Demos ohne Kabel läuft derselbe PoC hinter einem Reverse Proxy mit TLS, z. B. unter <code>https://wallet-demo.a-sit.at/</code>. Dann gilt:</p>
+<ul>
+<li><code>PUBLIC_URL=https://wallet-demo.a-sit.at</code> setzen. Die <code>client_id</code> wird <code>x509_san_dns:wallet-demo.a-sit.at</code>, das Request-Zertifikat erhält diesen SAN. Auch ein Pfad unter einer bestehenden Domain funktioniert (z. B. <code>https://amt.example.gv.at/wallet-demo</code>).</li>
+<li>Die normale Valera-App genügt; <code>adb reverse</code> und die Debug-APK entfallen.</li>
+<li>Das Request-Zertifikat ist selbstsigniert. Valera zeigt daher eine Warnung („kein Access-Zertifikat“). Im Produktivbetrieb verwenden Sie ein Zugangszertifikat (WRPAC) Ihres Registrars.</li>
+<li>Anträge und PID-Daten liegen nur im Arbeitsspeicher und werden nach <code>RETENTION_MINUTES</code> gelöscht.</li>
+</ul>
+<p>Vorlagen für den Reverse Proxy (Apache-vHost mit Let&#39;s Encrypt) und den Dienst (systemd) liegen im Ordner <code>deploy/</code> des PoC.</p>
+<h2 id="7-grenzen-des-poc">7. Grenzen des PoC</h2><ul>
+<li><strong>QTSP (remote, so gewollt):</strong> Der QTSP ist ein externer Vertrauensdienst und läuft bewusst remote; die Liste der QTSPs ist in der Wallet konfiguriert. Bei einer echten Signatur spricht <strong>die Wallet</strong> direkt mit dem QTSP. Der Behörden-Service hat keine Verbindung zum QTSP: Er liefert nur das Dokument und empfängt das signierte PDF.</li>
+<li><strong>Rücksprung vom QTSP:</strong> Nach der Anmeldung beim QTSP öffnet die Wallet dessen <code>redirect_uri</code>. Valera (VC-K) akzeptiert dort nur <code>https</code>-Adressen. Ein QTSP, der direkt auf ein App-Schema (<code>asitplus-wallet://…</code>) zurückleitet, braucht eine https-Zwischenseite; der PoC bietet dafür <code>/wallet-callback/…</code> an (Vorlage <code>deploy/apache-qtsp-callback.conf</code>).</li>
+<li><strong>Vertrauen:</strong> Bei PID und mDL akzeptiert der PoC nur Aussteller aus einer festen Liste von Zertifikaten (die Test-Aussteller, mit denen er erprobt ist; erweiterbar über <code>TRUSTED_ISSUERS</code>). Die Kette zur EU Trusted List prüft er nicht, auch nicht für das Zertifikat des QTSP. Im Produktivbetrieb ist das Pflicht.</li>
+<li><strong>Zertifikat:</strong> Der Request-Signer ist selbst ausgestellt. Wallets mit Trust-Prüfung, etwa neuere Valera-Versionen mit eIDAS-Dashboard-Abgleich, fragen deshalb gegebenenfalls nach. Produktiv wird das registrierte Zugangszertifikat verwendet.</li>
+<li><strong>Schrift im Antrags-PDF:</strong> Eingebettet ist Liberation Sans (lateinische Schrift mit Erweiterungen, Griechisch, Kyrillisch), damit Namen wie „Łukasz Dvořák“ unverändert im signierten Dokument stehen. Zeichen außerhalb davon (etwa CJK) erscheinen als „?“.</li>
+<li><strong>Persistenz:</strong> Anträge und Sitzungen liegen nur im Speicher.</li>
+</ul>
+<h2 id="8-sicherheit-und-datenschutz">8. Sicherheit und Datenschutz</h2><ul>
+<li><input disabled="" type="checkbox"> Request Objects <strong>immer signiert</strong> (<code>x5c</code>), <code>client_id</code> an den eigenen Hostnamen gebunden, <code>response_uri</code> auf demselben Host.</li>
+<li><input disabled="" type="checkbox"> <code>nonce</code> und <code>state</code> pro Vorgang zufällig erzeugen, serverseitig speichern und prüfen.</li>
+<li><input disabled="" type="checkbox"> Key Binding der PID prüfen (<code>nonce</code>, <code>aud</code>, <code>sd_hash</code>). Ohne diese Prüfung ist ein Replay möglich.</li>
+<li><input disabled="" type="checkbox"> Nachweise ohne prüfbare Ausstellersignatur oder von unbekannten Ausstellern ablehnen – „nicht prüfbar“ ist nicht „gültig“. Ein selbst ausgestelltes Zertifikat kann jeden Namen tragen.</li>
+<li><input disabled="" type="checkbox"> Die Kennung im QR-Code (<code>request_uri</code>) von der Kennung trennen, über die das Ergebnis abgerufen wird.</li>
+<li><input disabled="" type="checkbox"> Antworten der Wallet nur für offene Vorgänge und mit passendem <code>state</code> annehmen; ein falscher <code>state</code> darf den Vorgang nicht abbrechen.</li>
+<li><input disabled="" type="checkbox"> Eingaben aus dem Browser prüfen (Typ, Länge) und Fehler abfangen, damit ein einzelner Aufruf den Dienst nicht beendet.</li>
+<li><input disabled="" type="checkbox"> Verifizierte Daten <strong>serverseitig</strong> übernehmen, nie aus dem Browser.</li>
+<li><input disabled="" type="checkbox"> Nur benötigte Attribute anfragen und in der RP-Registrierung angeben.</li>
+<li><input disabled="" type="checkbox"> <code>documentLocations</code> nicht erratbar und kurzlebig gestalten.</li>
+<li><input disabled="" type="checkbox"> Kette angezeigter Hash = <code>documentDigests</code> = signierter Inhalt protokollieren.</li>
+<li><input disabled="" type="checkbox"> Signaturprüfung inkl. Trusted List und Sperrstatus <strong>vor</strong> der Einbringung – serverseitig, nicht nur als Anzeige.</li>
+<li><input disabled="" type="checkbox"> Logs ohne personenbezogene Inhalte.</li>
+</ul>
+<h2 id="9-ux-empfehlungen">9. UX-Empfehlungen</h2><ol>
+<li><strong>Ausweisen zuerst:</strong> Wer sich mit der Wallet ausweist, muss nichts abtippen. Verifizierte Felder als geprüft kennzeichnen und sperren.</li>
+<li><strong>Amtliche Daten nie abfragen:</strong> Was die Behörde vergibt oder im Register hat (Nummern, Klassen, ausstellende Stelle), kommt aus der Wallet oder dem Register – nicht aus einem Eingabefeld. Keine überflüssigen Kontaktdaten (z. B. E-Mail) erheben.</li>
+<li><strong>Manuellen Weg anbieten:</strong> „Ohne Wallet fortfahren&quot; für Personen ohne Wallet.</li>
+<li><strong>Dokument vor der Signatur zeigen.</strong> Eine zusätzliche Checkbox ist nicht nötig: Die Zustimmung erteilt die Person in der Wallet, die das Dokument ebenfalls anzeigt.</li>
+<li><strong>Gerätekontext erkennen:</strong> Am Smartphone ist der Deep-Link die Hauptaktion, am Desktop der QR-Code.</li>
+<li><strong>Live-Status:</strong> zeigen, ob die Wallet die Anfrage erhalten hat.</li>
+<li><strong>Klar sagen, welche Funktion der Wallet gemeint ist</strong> („Vorzeigen&quot; bzw. „Signieren&quot;).</li>
+<li><strong>Barrierefreiheit:</strong> QR-Code mit Textalternative, Same-Device-Weg als gleichwertige Option.</li>
+</ol>
+<h2 id="10-go-live-checkliste">10. Go-Live-Checkliste</h2><div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Bereich</th>
+<th>Punkt</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Recht</td>
+<td>Identifizierung über PID und Schriftform über QES im Materiengesetz zulässig?</td>
+</tr>
+<tr>
+<td>Registrierung</td>
+<td>Wallet-Relying-Party registriert, Zugangs- und Registrierungszertifikat vorhanden</td>
+</tr>
+<tr>
+<td>Identifizierung</td>
+<td>Trust-Anker der PID- und mDL-Aussteller (Trusted Lists) eingebunden, Sperrprüfung (Status List)</td>
+</tr>
+<tr>
+<td>Behörden-Service</td>
+<td>HTTPS, Laufzeiten, Monitoring, Dokumentabruf abgesichert</td>
+</tr>
+<tr>
+<td>QTSP</td>
+<td>Unterstützte QTSPs dokumentiert, Kostenfrage geklärt</td>
+</tr>
+<tr>
+<td>Prüfung</td>
+<td>Validierungsdienst (z. B. EU DSS) produktiv, Prüfprotokoll im Akt</td>
+</tr>
+<tr>
+<td>Datenschutz</td>
+<td>DSFA, Verarbeitungsverzeichnis, Informationspflichten</td>
+</tr>
+<tr>
+<td>Test</td>
+<td>Ende-zu-Ende mit mindestens zwei Wallets und zwei QTSPs</td>
+</tr>
+</tbody></table>
+</div><h2 id="11-häufige-fragen">11. Häufige Fragen</h2><p><strong>Brauchen wir einen Tunnel oder einen Cloud-Dienst zum Testen?</strong>
+Nein. Mit dem Debug-Build von Valera und <code>adb reverse</code> läuft alles über <code>localhost</code>.</p>
+<p><strong>Sieht die Behörde mehr Daten als nötig?</strong>
+Nein. Die DCQL-Abfrage nennt die Attribute einzeln, und die Wallet legt per Selective Disclosure nur diese offen.</p>
+<p><strong>Kann der Führerschein selbst aus der Wallet kommen?</strong>
+Ja, und der PoC macht genau das: Der mDL (ISO 18013-5) wird in derselben DCQL-Abfrage wie die PID angefordert, optional. Führerscheinnummer, ausstellende Behörde und Klassen sind dann vorbefüllt und geprüft. Ohne mDL ermittelt sie die Behörde aus dem Register.</p>
+<p><strong>Was passiert, wenn die Person in der Wallet ablehnt?</strong>
+Die Wallet meldet <code>error=access_denied</code>. Der Service zeigt das an und bietet eine neue Anfrage an.</p>
+<h2 id="12-glossar">12. Glossar</h2><div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Begriff</th>
+<th>Bedeutung</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>EUDIW</strong></td>
+<td>European Digital Identity Wallet nach eIDAS 2.0</td>
+</tr>
+<tr>
+<td><strong>PID</strong></td>
+<td>Person Identification Data: die digitale Identität in der Wallet</td>
+</tr>
+<tr>
+<td><strong>SD-JWT VC</strong></td>
+<td>Selective-Disclosure-JWT als Verifiable Credential: Format der PID</td>
+</tr>
+<tr>
+<td><strong>DCQL</strong></td>
+<td>Digital Credentials Query Language: Abfragesprache in OpenID4VP 1.0</td>
+</tr>
+<tr>
+<td><strong>Key Binding</strong></td>
+<td>Nachweis, dass die Präsentation vom Gerät der Inhaber:in stammt</td>
+</tr>
+<tr>
+<td><strong>QES</strong></td>
+<td>Qualifizierte elektronische Signatur</td>
+</tr>
+<tr>
+<td><strong>QTSP</strong></td>
+<td>Qualified Trust Service Provider: erzeugt die qualifizierte Signatur</td>
+</tr>
+<tr>
+<td><strong>Verifier</strong></td>
+<td>Rolle des Behörden-Service gegenüber der Wallet: stellt Anfragen und prüft Antworten</td>
+</tr>
+<tr>
+<td><strong>QSCD</strong></td>
+<td>Qualifizierte Signaturerstellungseinheit, hier remote beim QTSP</td>
+</tr>
+<tr>
+<td><strong>CSC API</strong></td>
+<td>Schnittstelle des Cloud Signature Consortium für Remote-Signaturen</td>
+</tr>
+<tr>
+<td><strong>OpenID4VP</strong></td>
+<td>OpenID for Verifiable Presentations</td>
+</tr>
+<tr>
+<td><strong>PAdES</strong></td>
+<td>PDF Advanced Electronic Signatures (ETSI EN 319 142)</td>
+</tr>
+<tr>
+<td><strong>WRPAC</strong></td>
+<td>Wallet-Relying-Party Access Certificate (Zugangszertifikat)</td>
+</tr>
+</tbody></table>
+</div><h2 id="13-referenzen">13. Referenzen</h2><ul>
+<li>Verordnung (EU) 2024/1183 (eIDAS 2.0) und Durchführungsverordnungen zur EUDI Wallet</li>
+<li><a target="_blank" rel="noopener" href="https://eudi.dev/">EUDI Architecture and Reference Framework (ARF)</a></li>
+<li><a target="_blank" rel="noopener" href="https://openid.net/specs/openid-4-verifiable-presentations-1_0.html">OpenID for Verifiable Presentations 1.0</a></li>
+<li><a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-disclosure-jwt/">IETF SD-JWT</a> und <a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/">SD-JWT VC</a></li>
+<li><a target="_blank" rel="noopener" href="https://cloudsignatureconsortium.org/resources/download-api-specifications/">Cloud Signature Consortium API</a></li>
+<li>ETSI TS 119 432, ETSI EN 319 142 (PAdES), ETSI EN 319 102-1, ETSI EN 319 412-5</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/a-sit-plus/valera">Valera Wallet</a> · <a target="_blank" rel="noopener" href="https://github.com/esig/dss">EU DSS</a></li>
+</ul>
+
+    </article>
+    <footer class="end">Erstellt als Begleitdokument zum Proof of Concept „Wallet-Signatur" (fiktive Behörde). Rechtsverweise vor Weitergabe fachlich prüfen.</footer>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.min.js"></script>
+<script>
+(function () {
+  if (!window.mermaid) return;
+  var forced = document.documentElement.getAttribute('data-theme');
+  var dark = forced ? forced === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: dark ? 'dark' : 'neutral', fontFamily: 'inherit' });
+})();
+</script>
+
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  links.forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var el = document.getElementById(a.getAttribute('href').slice(1));
+      if (el) { e.preventDefault(); el.scrollIntoView(); }
+    });
+  });
+  if (!('IntersectionObserver' in window)) return;
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (!en.isIntersecting) return;
+      links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + en.target.id); });
+    });
+  }, { rootMargin: '0px 0px -75% 0px' });
+  document.querySelectorAll('article h2').forEach(function (h) { obs.observe(h); });
+})();
+</script>

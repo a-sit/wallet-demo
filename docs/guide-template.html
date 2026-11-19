@@ -1,0 +1,154 @@
+<meta charset="utf-8">
+<title>EUDI-Wallet-Signatur Integrationsleitfaden</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: Behörden-Handbuch – feste Inhaltsspalte links, Lesespalte ~68ch, Tabellen dürfen breiter scrollen */
+:root {
+  --paper: #f6f8fb;
+  --sheet: #ffffff;
+  --ink: #16202e;
+  --muted: #566274;
+  --rule: #dbe2ec;
+  --accent: #1f4fa3;      /* Amtsblau */
+  --accent-soft: #e8eefa;
+  --seal: #b4372f;        /* Siegelrot, sparsam */
+  --code-bg: #eef2f7;
+  --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f141c; --sheet: #151c27; --ink: #e4e9f1; --muted: #9aa6b8; --rule: #2a3444;
+    --accent: #8db0f0; --accent-soft: #1c2a44; --seal: #e7776d; --code-bg: #1b2433; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f141c; --sheet: #151c27; --ink: #e4e9f1; --muted: #9aa6b8; --rule: #2a3444;
+  --accent: #8db0f0; --accent-soft: #1c2a44; --seal: #e7776d; --code-bg: #1b2433; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--paper); color: var(--ink);
+  font: 16px/1.7 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.shell { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 56px; padding-block: 48px 96px; }
+@media (max-width: 900px) { .shell { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-block: 24px 64px; } }
+
+/* Inhaltsverzeichnis */
+nav.toc { position: sticky; top: calc(24px + env(safe-area-inset-top, 0px)); align-self: start; font-size: 14px; }
+nav.toc .label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 12px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--rule); display: grid; gap: 2px; }
+nav.toc a { display: block; padding: 4px 0 4px 14px; margin-left: -1px; color: var(--muted); text-decoration: none; border-left: 2px solid transparent; line-height: 1.4; }
+nav.toc a:hover { color: var(--ink); }
+nav.toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+nav.toc .stamp { margin-top: 24px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+@media (max-width: 900px) {
+  nav.toc { position: static; background: var(--sheet); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+  nav.toc ol { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); border-left: 0; }
+  nav.toc a { padding-left: 0; border-left: 0; }
+  nav.toc .stamp { display: none; }
+}
+
+/* Kopf */
+header.cover { border-bottom: 1px solid var(--rule); padding-bottom: 28px; margin-bottom: 8px; }
+.eyebrow { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.eyebrow .seal { color: var(--seal); }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 4.4vw, 44px); line-height: 1.12; letter-spacing: -.01em; margin: 14px 0 20px; text-wrap: balance; max-width: 22ch; }
+.meta { display: grid; gap: 6px; font-size: 15px; color: var(--muted); max-width: 70ch; }
+.meta p { margin: 0; }
+.meta strong { color: var(--ink); }
+
+/* Lesetext */
+main { min-width: 0; }
+article > * { max-width: 70ch; }
+article > .table-wrap, article > figure, article > pre { max-width: none; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1.25; margin: 64px 0 12px; scroll-margin-top: 24px; text-wrap: balance; }
+h3 { font-size: 18px; font-weight: 600; margin: 40px 0 8px; scroll-margin-top: 24px; color: var(--ink); }
+h3::before { content: ""; display: inline-block; width: 8px; height: 8px; background: var(--accent); margin-right: 10px; vertical-align: 2px; }
+h4 { font-size: 16px; margin: 24px 0 6px; }
+p, li { color: var(--ink); }
+p { margin: 12px 0; }
+ul, ol { padding-left: 22px; margin: 12px 0; }
+li { margin: 4px 0; }
+a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+strong { font-weight: 600; }
+code { font-family: var(--font-mono); font-size: .86em; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+pre.code { background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; overflow-x: auto; font-size: 13.5px; line-height: 1.6; margin: 16px 0; }
+pre.code code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+blockquote { margin: 20px 0; padding: 14px 18px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; }
+blockquote p { margin: 4px 0; }
+
+.table-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--sheet); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; line-height: 1.55; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 600; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--code-bg); }
+th, td { padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { min-width: 150px; }
+
+figure.diagram { margin: 20px 0; padding: 16px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; overflow-x: auto; }
+figure.diagram pre.mermaid { margin: 0; background: none; display: flex; justify-content: center; min-width: 560px; }
+
+input[type="checkbox"] { accent-color: var(--accent); margin-right: 6px; }
+li:has(> input[type="checkbox"]) { list-style: none; margin-left: -22px; }
+
+footer.end { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--muted); max-width: 70ch; }
+</style>
+
+<div class="shell">
+  <nav class="toc" aria-label="Inhalt">
+    <div class="label">Inhalt</div>
+    <ol>{{TOC}}</ol>
+    <p class="stamp">Blaupause aus dem PoC „Digitales Amt Musterland"<br>Getestet mit Valera 5.9.1</p>
+  </nav>
+  <main>
+    <header class="cover">
+      <div class="eyebrow"><span class="seal">Integrationsleitfaden</span><span>OpenID4VP · SD-JWT VC · ISO 18013-5 · CSC API 2.0</span></div>
+      <h1>{{H1}}</h1>
+      <div class="meta">{{META}}</div>
+    </header>
+    <article>
+{{BODY}}
+    </article>
+    <footer class="end">Erstellt als Begleitdokument zum Proof of Concept „Wallet-Signatur" (fiktive Behörde). Rechtsverweise vor Weitergabe fachlich prüfen.</footer>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.min.js"></script>
+<script>
+(function () {
+  if (!window.mermaid) return;
+  var forced = document.documentElement.getAttribute('data-theme');
+  var dark = forced ? forced === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: dark ? 'dark' : 'neutral', fontFamily: 'inherit' });
+})();
+</script>
+
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  links.forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var el = document.getElementById(a.getAttribute('href').slice(1));
+      if (el) { e.preventDefault(); el.scrollIntoView(); }
+    });
+  });
+  if (!('IntersectionObserver' in window)) return;
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (!en.isIntersecting) return;
+      links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + en.target.id); });
+    });
+  }, { rootMargin: '0px 0px -75% 0px' });
+  document.querySelectorAll('article h2').forEach(function (h) { obs.observe(h); });
+})();
+</script>

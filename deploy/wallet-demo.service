@@ -1,0 +1,31 @@
+# systemd-Unit für den Backend-Server: /etc/systemd/system/wallet-demo.service
+# Voraussetzung: Node.js 22, Code unter /opt/wallet-demo (npm ci && npm run build), Benutzer wallet-demo
+[Unit]
+Description=Wallet-Signatur-PoC (https://wallet-demo.a-sit.at/)
+After=network.target
+
+[Service]
+Type=simple
+User=wallet-demo
+WorkingDirectory=/opt/wallet-demo
+Environment=NODE_ENV=production
+Environment=PUBLIC_URL=https://wallet-demo.a-sit.at
+# Der Frontend-Proxy muss den Port erreichen; Firewall auf dessen Adresse beschränken.
+Environment=HOST=0.0.0.0
+Environment=API_PORT=3001
+# X-Forwarded-For nur vom Frontend-Proxy übernehmen (für das Rate-Limit pro Nutzer-IP)
+Environment=TRUST_PROXY=<proxy-ip>
+Environment=RETENTION_MINUTES=60
+# Weitere Aussteller von PID/mDL zulassen (SHA-256-Fingerabdrücke, kommagetrennt), z. B. nach einem Zertifikatswechsel:
+#Environment=TRUSTED_ISSUERS=
+ExecStart=/opt/wallet-demo/node_modules/.bin/tsx server/src/index.ts
+Restart=on-failure
+# .data/ (Schlüssel und Zertifikate) muss beschreibbar sein und erhalten bleiben
+ReadWritePaths=/opt/wallet-demo/.data
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
