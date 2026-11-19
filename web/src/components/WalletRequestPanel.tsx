@@ -9,11 +9,11 @@ import { tServer } from '../i18n/server'
 export type WalletMode = 'wallet' | 'simulation'
 
 /** Ist der Server für die EU-Referenz-Wallet eingerichtet (Zugangszertifikat vom EU-Registrar)? */
-let eudiConfig: Promise<boolean> | undefined
+let eudiConfig: Promise<{ present: boolean; sign: boolean }> | undefined
 function useEudiAvailable() {
-  const [ok, setOk] = useState(false)
+  const [ok, setOk] = useState({ present: false, sign: false })
   useEffect(() => {
-    eudiConfig ??= api.config().then((c) => !!c.eudi).catch(() => false)
+    eudiConfig ??= api.config().then((c) => ({ present: !!c.eudi, sign: !!c.eudi?.sign })).catch(() => ({ present: false, sign: false }))
     eudiConfig.then(setOk)
   }, [])
   return ok
@@ -50,9 +50,13 @@ export function WalletRequestPanel(props: {
 }) {
   // Vorzeigen: EU-Profil (x509_hash, WRPRC, verschlüsselte Antwort) – das verstehen Valera und die EU-Referenz-Wallet.
   // Signieren kann die EU-Referenz-Wallet hier (noch) nicht, dafür bleibt es bei Valera.
-  const eudi = useEudiAvailable() && props.kind === 'present'
+  const available = useEudiAvailable()
+  const eudi = available.present && props.kind === 'present'
   const mode: WalletMode = props.mode === 'simulation' ? 'simulation' : 'wallet'
-  const walletName = props.walletName ?? (eudi ? 'Wallet' : 'Valera-Wallet')
+  // Signieren: eigener Ablauf je Wallet (Valera: sign_response über haip://, EU-Referenz-Wallet: eudi-rqes://)
+  const [signWallet, setSignWallet] = useState<'valera' | 'eudi'>('valera')
+  const euSign = props.kind === 'sign' && available.sign && signWallet === 'eudi'
+  const walletName = props.walletName ?? (euSign ? 'EU-Referenz-Wallet' : eudi ? 'Wallet' : 'Valera-Wallet')
   // im Fließtext: „mit der Valera-Wallet“ / „with the Valera wallet“, „with the wallet“
   const wallet = getLang() === 'en' && walletName === 'Wallet' ? 'wallet' : t(walletName)
   const { stages } = props
@@ -70,7 +74,8 @@ export function WalletRequestPanel(props: {
     setStatus(undefined)
     setRequest(undefined)
     try {
-      const r = await props.start(eudi ? 'eudi' : undefined)
+      // Simulation beim Signieren: Valera-Ablauf; der EU-Ablauf antwortet an die öffentliche Adresse
+      const r = await props.start(eudi || (euSign && mode !== 'simulation') ? 'eudi' : undefined)
       startedAt.current = Date.now()
       setRemaining(r.expiresInSec)
       setRequest(r)
@@ -114,7 +119,27 @@ export function WalletRequestPanel(props: {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        {props.kind === 'sign' && available.sign && mode === 'wallet' && (
+          <div className="flex rounded-xl bg-slate-100 p-1 text-sm dark:bg-slate-900">
+            {(['valera', 'eudi'] as const).map((w) => (
+              <button
+                key={w}
+                disabled={busy}
+                onClick={() => {
+                  if (w === signWallet) return
+                  setSignWallet(w)
+                  setRequest(undefined)
+                  setStatus(undefined)
+                }}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition ${signWallet === w ? 'bg-white shadow-sm dark:bg-slate-800' : 'text-slate-500'}`}
+              >
+                {w === 'eudi' && <Landmark className="h-3.5 w-3.5" />}
+                {w === 'valera' ? 'Valera' : t('EU-Referenz-Wallet')}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex rounded-xl bg-slate-100 p-1 text-sm dark:bg-slate-900">
           {(['wallet', 'simulation'] as const).map((m) => (
             <button
@@ -130,7 +155,7 @@ export function WalletRequestPanel(props: {
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition ${mode === m ? 'bg-white shadow-sm dark:bg-slate-800' : 'text-slate-500'}`}
             >
               {m === 'wallet' ? <Usb className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}
-              {m === 'wallet' ? (props.walletName || eudi ? t('Smartphone') : t('Valera-Smartphone')) : t('Simulation')}
+              {m === 'wallet' ? (props.walletName || eudi || (props.kind === 'sign' && available.sign) ? t('Smartphone') : t('Valera-Smartphone')) : t('Simulation')}
             </button>
           ))}
         </div>
@@ -235,7 +260,7 @@ export function WalletRequestPanel(props: {
           </div>
           {!sim && (
             <div className="card p-6 text-sm">
-              {props.instructions}
+              {euSign ? <EudiSignInstructions /> : props.instructions}
               {eudi && <EudiHint />}
             </div>
           )}
@@ -347,5 +372,31 @@ function EudiHint() {
         {t('Die Anfrage ist mit dem Zugangszertifikat (WRPAC) aus der Registrierung beim EU-Registrar signiert und enthält das Registrierungszertifikat (WRPRC). Die Wallet schickt ihre Antwort verschlüsselt zurück.')}
       </p>
     </div>
+  )
+}
+
+/** Signieren mit der EU-Referenz-Wallet (RQES, Document Retrieval) */
+function EudiSignInstructions() {
+  const en = getLang() === 'en'
+  return (
+    <>
+      <h3 className="flex items-center gap-2 font-semibold">
+        <Landmark className="h-4 w-4 text-brand-600" /> {t("So geht's mit der EU-Referenz-Wallet")}
+      </h3>
+      <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-slate-600 dark:text-slate-400">
+        <li>
+          {en ? (
+            <>In the wallet choose <b>“Sign document”</b> → <b>“Scan QR”</b> and scan the QR code.</>
+          ) : (
+            <>In der Wallet <b>„Sign document“</b> → <b>„Scan QR“</b> wählen und den QR-Code scannen.</>
+          )}
+        </li>
+        <li>{t('Den QTSP „Wallet-Centric“ auswählen und sich mit der PID beim QTSP anmelden.')}</li>
+        <li>{t('Dokument prüfen und signieren. Die Wallet liefert das signierte PDF direkt an den PoC zurück.')}</li>
+      </ol>
+      <p className="mt-3 rounded-xl bg-sky-50 p-3 text-xs text-sky-800 dark:bg-sky-900/30 dark:text-sky-200">
+        {t('Die Anfrage ist mit dem Zugangszertifikat aus der Registrierung beim EU-Registrar signiert (x509_san_uri). Signiert wird beim Test-QTSP der EU-Referenzimplementierung.')}
+      </p>
+    </>
   )
 }

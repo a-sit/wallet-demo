@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { CLIENT_ID, PUBLIC_URL, RP_HOST, SESSION_TTL_MS } from '../config.js'
 import { signJws } from '../crypto/jose.js'
-import { loadIdentity } from '../crypto/identities.js'
+import { loadEuAccess, loadIdentity, type EuAccess } from '../crypto/identities.js'
 import type { ProtocolEvent } from '../events.js'
 
 /**
@@ -13,7 +13,23 @@ import type { ProtocolEvent } from '../events.js'
  *  3. GET  /sign/document/:id   Wallet lädt das zu signierende Dokument
  *  4. Wallet lässt die Signatur beim QTSP erstellen (CSC API 2.0, in der Wallet konfiguriert)
  *  5. POST /sign/response/:id   Wallet liefert das signierte PDF (documentWithSignature)
+ *
+ * Profil eudi (EU-Referenz-Wallet, „Document Retrieval“): Deep-Link eudi-rqes://, Request Object mit dem
+ * Zugangszertifikat (WRPAC) signiert, client_id_scheme x509_san_uri. Die Wallet verlangt, dass client_id
+ * und response_uri genau der URI im SAN des Zertifikats entsprechen – die Antwort kommt daher an diese
+ * Adresse (ohne #-Fragment: POST /) und wird über state der Sitzung zugeordnet.
  */
+
+export type SignProfile = 'standard' | 'eudi'
+
+/** Kann die EU-Referenz-Wallet hier signieren? Nur wenn die SAN-URI des WRPAC zu diesem Server führt. */
+export async function euSigning(): Promise<(EuAccess & { sanUri: string }) | undefined> {
+  const eu = await loadEuAccess().catch(() => undefined)
+  if (!eu?.sanUri) return undefined
+  return new URL(eu.sanUri).origin === new URL(PUBLIC_URL).origin && new URL(eu.sanUri).pathname === '/'
+    ? (eu as EuAccess & { sanUri: string })
+    : undefined
+}
 
 export type SigningState = 'WAITING_FOR_WALLET' | 'WALLET_CONNECTED' | 'SIGNING' | 'COMPLETED' | 'FAILED' | 'EXPIRED'
 
@@ -25,6 +41,7 @@ export interface SigningSession {
   status: SigningState
   pdf: Buffer
   label: string
+  profile: SignProfile
   signedPdf?: Buffer
   error?: string
   events: ProtocolEvent[]
@@ -37,18 +54,22 @@ function log(s: SigningSession, e: Omit<ProtocolEvent, 'at'>) {
   s.events.push({ at: new Date().toISOString(), ...e })
 }
 
-export async function createSignRequest(pdf: Buffer, label: string) {
+export async function createSignRequest(pdf: Buffer, label: string, profile: SignProfile = 'standard') {
   await rp()
+  const eu = profile === 'eudi' ? await euSigning() : undefined
+  if (profile === 'eudi' && !eu) return { error: 'Signieren mit der EU-Referenz-Wallet ist auf diesem Server nicht eingerichtet' }
   const s: SigningSession = {
     id: crypto.randomUUID(), state: crypto.randomUUID(), nonce: crypto.randomUUID(),
-    createdAt: Date.now(), status: 'WAITING_FOR_WALLET', pdf, label, events: []
+    createdAt: Date.now(), status: 'WAITING_FOR_WALLET', pdf, label, profile, events: []
   }
   sessions.set(s.id, s)
   // Der Pfad muss „createSignRequest“ enthalten: Valera erkennt daran einen von außen (Kamera, Browser)
   // geöffneten Link als Signaturanfrage – sonst behandelt es ihn als normale OpenID4VP-Anfrage.
   const requestUri = `${PUBLIC_URL}/sign/createSignRequest/${s.id}`
-  const deepLink = `haip://?request_uri=${encodeURIComponent(requestUri)}&client_id=${encodeURIComponent(CLIENT_ID)}`
-  log(s, { direction: 'info', title: 'Signaturanfrage angelegt', detail: { request_uri: requestUri, document: label, bytes: pdf.length } })
+  const deepLink = eu
+    ? `eudi-rqes://?request_uri=${encodeURIComponent(requestUri)}&client_id=${encodeURIComponent(eu.sanUri)}`
+    : `haip://?request_uri=${encodeURIComponent(requestUri)}&client_id=${encodeURIComponent(CLIENT_ID)}`
+  log(s, { direction: 'info', title: 'Signaturanfrage angelegt', detail: { profile, request_uri: requestUri, document: label, bytes: pdf.length } })
   return { id: s.id, deepLink }
 }
 
@@ -69,12 +90,16 @@ export function getSigning(id: string) {
 export async function signRequestObject(id: string) {
   const s = getSigning(id)
   if (!s || s.status === 'EXPIRED') return undefined
-  const { privateKey, certB64 } = await rp()
+  const eu = s.profile === 'eudi' ? await euSigning() : undefined
+  if (s.profile === 'eudi' && !eu) return undefined
+  const local = await rp()
+  const { privateKey, x5c } = eu ?? { privateKey: local.privateKey, x5c: [local.certB64] }
   const payload = {
     response_type: 'sign_response',
-    client_id: CLIENT_ID,
+    client_id: eu ? eu.sanUri : CLIENT_ID,
+    ...(eu ? { client_id_scheme: 'x509_san_uri' } : {}),
     response_mode: 'direct_post',
-    response_uri: `${PUBLIC_URL}/sign/response/${s.id}`,
+    response_uri: eu ? eu.sanUri : `${PUBLIC_URL}/sign/response/${s.id}`,
     nonce: s.nonce,
     state: s.state,
     signatureQualifier: 'eu_eidas_qes',
@@ -84,7 +109,7 @@ export async function signRequestObject(id: string) {
   }
   if (s.status === 'WAITING_FOR_WALLET') s.status = 'WALLET_CONNECTED'
   log(s, { direction: 'in', title: 'Wallet hat Request Object abgerufen', detail: payload })
-  return signJws({ typ: 'JWT', x5c: [certB64] }, payload, privateKey)
+  return signJws({ typ: 'JWT', x5c }, payload, privateKey)
 }
 
 export function signDocument(id: string) {
@@ -93,6 +118,14 @@ export function signDocument(id: string) {
   if (s.status === 'WALLET_CONNECTED') s.status = 'SIGNING'
   log(s, { direction: 'in', title: 'Wallet hat das Dokument geladen (Anzeige, Zustimmung, Signatur beim QTSP)', detail: { bytes: s.pdf.length } })
   return s.pdf
+}
+
+/** EU-Profil: Antwort an die SAN-URI (POST /), Zuordnung nur über state */
+export function handleEuSignResponse(body: Record<string, unknown>) {
+  const state = typeof body?.state === 'string' ? body.state : undefined
+  const s = state ? [...sessions.values()].find((x) => x.profile === 'eudi' && x.state === state) : undefined
+  if (!s) return { status: 400, body: { error: 'invalid_request' } }
+  return handleSignResponse(s.id, body, {})
 }
 
 /** Ergebnis der Wallet: documentWithSignature (Base64, als JSON-Array oder einzeln) */

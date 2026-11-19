@@ -64,7 +64,14 @@ sonst in `.data/eu-launchpad/` bzw. `deploy/eu-launchpad/`. Fehlen sie, bietet d
 PID und mDL aus der EU-Testumgebung gelten als vertrauenswürdig, wenn ihr Ausstellerzertifikat von einer CA aus der
 [LoTE-Liste der PID-Provider](https://trustedlist.serviceproviders.eudiw.dev/LOTE/json/PIDProviders.jwt) stammt
 ([server/src/verifier/trust-anchors/](server/src/verifier/trust-anchors/eu-pid-providers.pem)).
-Signieren mit der EU-Referenz-Wallet (`transaction_data` vom Typ QES) ist noch nicht umgesetzt.
+
+**Signieren mit der EU-Referenz-Wallet** (Auswahl „Valera / EU-Referenz-Wallet" beim Signieren, API: `wallet_profile: "eudi"`):
+Die Wallet nutzt dafür ihre RQES-Bibliothek („Document Retrieval", Deep-Link `eudi-rqes://`, in der App „Sign document" →
+„Scan QR"). Sie kennt dort nur `client_id_scheme` `x509_san_uri` und verlangt, dass `client_id` und `response_uri` genau der
+URI im SAN des Zugangszertifikats entsprechen und das Zertifikat von einer EU-PID-CA stammt. Beim Launchpad-WRPAC ist das
+die angegebene Support-Adresse (`https://<host>/#/…`); die Wallet sendet das signierte PDF deshalb per `POST /` (ohne
+Fragment), der Server ordnet es über `state` zu. Angeboten wird das nur, wenn diese URI zur `PUBLIC_URL` passt.
+Signiert wird beim Test-QTSP der EU („Wallet-Centric"), die Anmeldung dort erfolgt mit der EU-PID.
 
 ## Öffentlicher Betrieb (https://wallet-demo.a-sit.at/)
 

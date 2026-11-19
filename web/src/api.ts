@@ -178,12 +178,12 @@ export const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hos
 const post = (body: unknown) => ({ method: 'POST', body: JSON.stringify(body) })
 
 export const api = {
-  config: () => call<{ publicUrl: string; clientId: string; eudi: { clientId: string; issuer: string } | null }>('api/config'),
+  config: () => call<{ publicUrl: string; clientId: string; eudi: { clientId: string; issuer: string; sign: boolean } | null }>('api/config'),
   identify: (profile?: WalletProfile) => call<WalletRequest>('api/identifications', post(profile ? { wallet_profile: profile } : {})),
   identification: (id: string) => call<Identification>(`api/identifications/${id}`),
   create: (form: ApplicationForm, identificationId?: string) =>
     call<CreatedApplication>('api/applications', post({ ...form, identificationId })),
-  sign: (id: string) => call<WalletRequest>(`api/applications/${id}/sign`, post({})),
+  sign: (id: string, profile?: WalletProfile) => call<WalletRequest>(`api/applications/${id}/sign`, post(profile ? { wallet_profile: profile } : {})),
   status: (id: string) => call<FlowStatus>(`api/applications/${id}/status`),
   validation: (id: string) => call<SignatureReport>(`api/applications/${id}/validation`),
   submit: (id: string) => call<{ applicationNo: string; submittedAt: string }>(`api/applications/${id}/submit`, post({})),
@@ -200,7 +200,7 @@ export const api = {
     return body as UploadedDocument
   },
   sampleDocument: () => call<UploadedDocument>('api/documents/sample', post({})),
-  signDocument: (id: string) => call<WalletRequest>(`api/documents/${id}/sign`, post({})),
+  signDocument: (id: string, profile?: WalletProfile) => call<WalletRequest>(`api/documents/${id}/sign`, post(profile ? { wallet_profile: profile } : {})),
   documentStatus: (id: string) => call<FlowStatus>(`api/documents/${id}/status`),
   documentValidation: (id: string) => call<SignatureReport>(`api/documents/${id}/validation`),
   uploadedUrl: (id: string) => `api/documents/${id}/document.pdf`,

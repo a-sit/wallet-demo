@@ -31,7 +31,7 @@ export function SignStep(props: {
         setMode={props.setMode}
         stages={STAGES.map((s) => ({ ...s, title: t(s.title), text: t(s.text) }))}
         startLabel={t('Signaturanfrage erstellen')}
-        start={() => api.sign(application.id)}
+        start={(profile) => api.sign(application.id, profile)}
         poll={() => api.status(application.id)}
         onCompleted={props.onDone}
         instructions={<SignInstructions />}

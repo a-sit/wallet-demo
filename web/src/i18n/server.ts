@@ -86,6 +86,8 @@ const EXACT: Record<string, string> = {
   'Antwort der Wallet erhalten (direct_post)': 'Response received from the wallet (direct_post)',
   'Antwort der Wallet erhalten (direct_post.jwt)': 'Response received from the wallet (direct_post.jwt)',
   'Antwort wird verschlüsselt': 'Response is encrypted',
+  'response_uri = client_id (x509_san_uri)': 'response_uri = client_id (x509_san_uri)',
+  'Signieren mit der EU-Referenz-Wallet ist auf diesem Server nicht eingerichtet': 'Signing with the EU reference wallet is not set up on this server',
   'Zugangszertifikat stammt nicht von einem Aussteller der EU-Vertrauensliste (WRPAC Providers)': 'Access certificate is not from an issuer on the EU trusted list (WRPAC Providers)',
   'Registrierungszertifikat (WRPRC) ungültig oder nicht an das Zugangszertifikat gebunden': 'Registration certificate (WRPRC) invalid or not bound to the access certificate',
   'Registrierungszertifikat (WRPRC) nicht lesbar': 'Registration certificate (WRPRC) unreadable',
@@ -158,6 +160,8 @@ const PATTERNS: [RegExp, Replacer][] = [
     (m) => `delivered: ${m[1] === 'nichts' ? 'nothing' : m[1]} – ${m[2].startsWith('alle') ? 'all credentials are required' : 'required and alternatives as per credential_sets'}`
   ],
   [/^(.+), ausgestellt von (.+) \(([A-Z]{2})\) – EU-Testvertrauensliste \(LoTE PID Providers\)$/s, (m) => `${m[1]}, issued by ${m[2]} (${m[3]}) – EU test trusted list (LoTE PID Providers)`],
+  [/^client_id (\S+) steht im SAN des Zugangszertifikats \(x509_san_uri\)$/s, (m) => `client_id ${m[1]} is in the SAN of the access certificate (x509_san_uri)`],
+  [/^Zugangszertifikat von ([^,]+ \([A-Z]{2}\))$/s, (m) => `Access certificate from ${m[1]}`],
   [/^response_mode (\S+), Antwort an (\S+)$/s, (m) => `response_mode ${m[1]}, response to ${m[2]}`],
   [/^Zugangszertifikat von (.+), Registrierungszertifikat „(.+)“ gültig signiert$/s, (m) => `Access certificate from ${m[1]}, registration certificate “${m[2]}” validly signed`],
   [/^Zugangszertifikat von (.+), aber kein Registrierungszertifikat \(WRPRC\)$/s, (m) => `Access certificate from ${m[1]}, but no registration certificate (WRPRC)`],

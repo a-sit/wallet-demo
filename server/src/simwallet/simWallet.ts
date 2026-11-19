@@ -44,9 +44,12 @@ export async function inspectRequest(deepLink: unknown) {
   const cert = certFromX5c(header.x5c[0])
   const id = String(payload.client_id ?? clientId)
   const byHash = id.startsWith('x509_hash:')
+  // Signieren mit der EU-Referenz-Wallet: client_id_scheme x509_san_uri, client_id = URI im SAN = response_uri
+  const bySanUri = payload.client_id_scheme === 'x509_san_uri'
+  const sanUris = (cert.subjectAltName ?? '').split(', ').filter((n) => n.startsWith('URI:')).map((n) => n.slice(4))
   const responseHost = new URL(payload.response_uri).hostname
   // x509_hash: client_id = SHA-256 des Zertifikats; der Name des Dienstes steht im Zertifikat (CN)
-  const host = byHash ? /CN=([^\n,]+)/.exec(cert.subject)?.[1] ?? responseHost : id.replace(/^x509_san_dns:/, '')
+  const host = byHash || bySanUri ? /CN=([^\n,]+)/.exec(cert.subject)?.[1] ?? responseHost : id.replace(/^x509_san_dns:/, '')
   const rc = Array.isArray(payload.verifier_info) ? payload.verifier_info.find((v: { format?: string }) => v?.format === 'registration_cert') : undefined
   // WYSIWYS: Die Wallet lädt das Dokument vor der Zustimmung, zeigt es an und prüft,
   // dass es genau dem Hash in documentDigests entspricht.
@@ -64,13 +67,19 @@ export async function inspectRequest(deepLink: unknown) {
     ...(payload.dcql_query ? offer(payload.dcql_query) : {}),
     checks: [
       { label: 'Anfrage ist echt und unverändert', detail: 'Request Object signiert (JWS, Zertifikat im x5c-Header)', ok: verifyJws(jwt, cert.publicKey) },
-      byHash
+      bySanUri
+        ? { label: `Absender ist ${host}`, detail: `client_id ${id} steht im SAN des Zugangszertifikats (x509_san_uri)`, ok: sanUris.includes(id) }
+        : byHash
         ? { label: `Absender ist ${host}`, detail: 'client_id x509_hash = SHA-256 des Zugangszertifikats (WRPAC)', ok: id.slice(10) === crypto.createHash('sha256').update(cert.raw).digest('base64url') }
         : { label: `Absender ist ${host}`, detail: `client_id x509_san_dns:${host} steht im SAN des Zertifikats`, ok: !!cert.checkHost(host) },
-      byHash
+      bySanUri
+        ? { label: `Antwort geht nur an ${host}`, detail: 'response_uri = client_id (x509_san_uri)', ok: payload.response_uri === id }
+        : byHash
         ? { label: 'Antwort wird verschlüsselt', detail: `response_mode ${payload.response_mode}, Antwort an ${responseHost}`, ok: payload.response_mode === 'direct_post.jwt' && !!payload.client_metadata?.jwks?.keys?.length }
         : { label: `Antwort geht nur an ${host}`, detail: `response_uri-Host ${responseHost} = client_id-Host`, ok: responseHost === host },
-      registration(cert, rc)
+      bySanUri
+        ? { label: 'Im EU-Register eingetragen', detail: accessCertificateAnchor(cert) ? `Zugangszertifikat von ${accessCertificateAnchor(cert)}` : 'Zugangszertifikat stammt nicht von einem Aussteller der EU-Vertrauensliste (WRPAC Providers)', ok: accessCertificateAnchor(cert) ? true : null }
+        : registration(cert, rc)
     ],
     certificate: cert.subject.replace(/\n/g, ', ')
   }
@@ -182,8 +191,11 @@ export async function present(deepLink: unknown, share: boolean, o: { select?: u
 
 export async function signDocument(deepLink: unknown, approve: boolean) {
   const { payload } = await inspectRequest(deepLink)
-  const responseUri = `${payload.response_uri}?state=${encodeURIComponent(payload.state)}`
-  if (!approve) return postForm(responseUri, { error: 'access_denied' })
+  // EU-Referenz-Wallet: state im Formular, response_uri ohne #-Fragment (wie ein HTTP-Client sie aufruft)
+  const eu = payload.client_id_scheme === 'x509_san_uri'
+  const responseUri = eu ? String(payload.response_uri).split('#')[0] : `${payload.response_uri}?state=${encodeURIComponent(payload.state)}`
+  const extra: Record<string, string> = eu ? { state: payload.state } : {}
+  if (!approve) return postForm(responseUri, { error: 'access_denied', ...extra })
 
   const pdf = Buffer.from(await (await fetch(local(payload.documentLocations[0].uri))).arrayBuffer())
   const hash = crypto.createHash('sha256').update(pdf).digest('base64')
@@ -192,5 +204,5 @@ export async function signDocument(deepLink: unknown, approve: boolean) {
   // Rolle des QTSP: Signatur erstellen (im Simulator verzögert, damit der Ablauf sichtbar bleibt)
   await new Promise((r) => setTimeout(r, 2000))
   const signed = await testSignPdf(pdf)
-  await postForm(responseUri, { documentWithSignature: JSON.stringify([signed.toString('base64')]) })
+  await postForm(responseUri, { documentWithSignature: JSON.stringify([signed.toString('base64')]), ...extra })
 }

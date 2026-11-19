@@ -158,10 +158,10 @@ export function SignaturePage({ mode, setMode }: { mode: WalletMode; setMode: (m
             setMode={setMode}
             stages={STAGES.map((s) => ({ ...s, title: t(s.title), text: t(s.text) }))}
             startLabel={t('Signaturanfrage erstellen')}
-            start={() => {
+            start={(profile) => {
               setSigned(false)
               setReport(undefined)
-              return api.signDocument(doc.id)
+              return api.signDocument(doc.id, profile)
             }}
             poll={() => api.documentStatus(doc.id)}
             onCompleted={() => setSigned(true)}

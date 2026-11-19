@@ -5,6 +5,12 @@ const en: Record<string, string> = {
   'Valera-Smartphone': 'Valera smartphone',
   Simulation: 'Simulation',
   'Auch mit der EU-Referenz-Wallet': 'Also with the EU reference wallet',
+  'EU-Referenz-Wallet': 'EU reference wallet',
+  "So geht's mit der EU-Referenz-Wallet": 'How it works with the EU reference wallet',
+  'Den QTSP „Wallet-Centric“ auswählen und sich mit der PID beim QTSP anmelden.': 'Choose the QTSP “Wallet-Centric” and sign in to the QTSP with your PID.',
+  'Dokument prüfen und signieren. Die Wallet liefert das signierte PDF direkt an den PoC zurück.': 'Check and sign the document. The wallet delivers the signed PDF directly back to the PoC.',
+  'Die Anfrage ist mit dem Zugangszertifikat aus der Registrierung beim EU-Registrar signiert (x509_san_uri). Signiert wird beim Test-QTSP der EU-Referenzimplementierung.':
+    'The request is signed with the access certificate from the registration with the EU registrar (x509_san_uri). The signature is created by the test QTSP of the EU reference implementation.',
   'Derselbe QR-Code funktioniert mit der EU-Referenz-Wallet (PID aus der EU-Testumgebung): mit der Scan-Funktion der Wallet scannen und freigeben.':
     "The same QR code works with the EU reference wallet (PID from the EU test environment): scan it with the wallet's scan function and share.",
   'Authentifizierung des Dienstes': 'Authentication of the service',

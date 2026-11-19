@@ -18,7 +18,7 @@ import type { VerifiedPerson } from './verifier/pid.js'
 import type { VerifiedLicence } from './verifier/mdoc.js'
 import { lookupLicence } from './register.js'
 import {
-  createSignRequest, getSigning, handleSignResponse, signDocument, signRequestObject,
+  createSignRequest, euSigning, getSigning, handleEuSignResponse, handleSignResponse, signDocument, signRequestObject,
   sweepSessions as sweepSignings
 } from './signing/signing.js'
 import { inspectRequest, present, signDocument as simSign } from './simwallet/simWallet.js'
@@ -189,7 +189,8 @@ app.get('/wallet-callback/app/callback/:flow', (req, res) => {
 
 app.get('/api/config', wrap(async (_req, res) => {
   const eu = await loadEuAccess().catch((e) => (console.warn('[eu] Zugangszertifikat nicht lesbar:', (e as Error).message), undefined))
-  res.json({ publicUrl: PUBLIC_URL, clientId: CLIENT_ID, eudi: eu ? { clientId: eu.clientId, issuer: eu.issuer } : null })
+  const sign = await euSigning()
+  res.json({ publicUrl: PUBLIC_URL, clientId: CLIENT_ID, eudi: eu ? { clientId: eu.clientId, issuer: eu.issuer, sign: !!sign } : null })
 }))
 
 // ─── Behörden-Service: Identifizierung mit der Wallet (PID) ───────────────────
@@ -288,11 +289,16 @@ app.get('/api/applications/:id/document.pdf', (req, res) => {
   res.send(a.pdf)
 })
 
+/** wallet_profile im Body: "eudi" = EU-Referenz-Wallet, sonst Valera */
+const signProfile = (body: unknown) => ((body as { wallet_profile?: unknown })?.wallet_profile === 'eudi' ? 'eudi' : 'standard') as 'eudi' | 'standard'
+
 app.post('/api/applications/:id/sign', limitCreate, wrap(async (req, res) => {
   const a = find(req, res)
   if (!a) return
   if (a.submittedAt) return res.status(409).json({ error: 'Antrag ist bereits eingebracht' })
-  const { id, deepLink } = await createSignRequest(a.pdf, `Antrag-${a.applicationNo}.pdf`)
+  const r = await createSignRequest(a.pdf, `Antrag-${a.applicationNo}.pdf`, signProfile(req.body))
+  if ('error' in r) return res.status(400).json({ error: r.error })
+  const { id, deepLink } = r
   a.signingId = id
   res.json({ deepLink, qrSvg: await qr(deepLink), expiresInSec: SESSION_TTL_MS / 1000 })
 }))
@@ -418,7 +424,9 @@ app.get('/api/documents/:id/document.pdf', (req, res) => {
 app.post('/api/documents/:id/sign', limitCreate, wrap(async (req, res) => {
   const d = findDocument(req, res)
   if (!d) return
-  const { id, deepLink } = await createSignRequest(d.pdf, d.name)
+  const r = await createSignRequest(d.pdf, d.name, signProfile(req.body))
+  if ('error' in r) return res.status(400).json({ error: r.error })
+  const { id, deepLink } = r
   d.signingId = id
   res.json({ deepLink, qrSvg: await qr(deepLink), expiresInSec: SESSION_TTL_MS / 1000 })
 }))
@@ -481,6 +489,12 @@ app.get(['/sign/document/:id', '/da/document/:id'], (req, res) => {
   const pdf = signDocument(req.params.id)
   if (!pdf) return res.status(404).end()
   res.type('application/pdf').send(pdf)
+})
+
+// EU-Referenz-Wallet: Antwort an die URI im Zugangszertifikat (https://<host>/#/…, das Fragment fällt weg)
+app.post('/', (req, res) => {
+  const r = handleEuSignResponse(req.body ?? {})
+  res.status(r.status).json(r.body)
 })
 
 app.post(['/sign/response/:id', '/da/response/:id'], (req, res) => {

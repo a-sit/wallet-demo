@@ -82,6 +82,8 @@ export interface EuAccess {
   wrprc: string
   subject: string
   issuer: string
+  /** URI im SAN des Zugangszertifikats: client_id und response_uri beim Signieren (x509_san_uri) */
+  sanUri?: string
 }
 
 let euAccess: EuAccess | null | undefined
@@ -119,7 +121,8 @@ export async function loadEuAccess(): Promise<EuAccess | undefined> {
     clientId: `x509_hash:${crypto.createHash('sha256').update(leaf.raw).digest('base64url')}`,
     wrprc: fs.readFileSync(path.join(dir, 'wrprc.jwt'), 'utf8').trim(),
     subject: leaf.subject.replace(/\n/g, ', '),
-    issuer: leaf.issuer.replace(/\n/g, ', ')
+    issuer: leaf.issuer.replace(/\n/g, ', '),
+    sanUri: /(?:^|, )URI:([^,\s]+)/.exec(leaf.subjectAltName ?? '')?.[1]
   }
   return euAccess
 }
