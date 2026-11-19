@@ -329,3 +329,13 @@ test('Dokument signieren: nur lesbare PDFs in begrenzter Größe, Dateiname wird
   assert.equal((await pdfUpload(Buffer.concat([pdf, Buffer.alloc(5 * 1024 * 1024)]))).status, 413)
   assert.equal((await fetch(`${BASE}/api/documents/${crypto.randomUUID()}/status`)).status, 404)
 })
+
+test('Playground: Deep-Link-Schema nur aus der Liste bekannter Wallet-Schemata', async () => {
+  const q = { credentials: [{ id: 'age', format: 'mso_mdoc', meta: { doctype_value: 'eu.europa.ec.av.1' } }] }
+  for (const uri of ['javascript://%0aalert(1)', 'data://x', 'vbscript://x', 'https://x.example/?a', 'evil://'])
+    assert.equal((await fetch(`${BASE}/api/playground/presentations`, json({ dcql_query: q, authorization_request_uri: uri }))).status, 400, uri)
+  for (const uri of ['eu-eaap://', 'https://wallet.example/authorize']) {
+    const r = await post('/api/playground/presentations', { dcql_query: q, authorization_request_uri: uri })
+    assert.ok(r.deepLink.startsWith(uri + '?'), uri)
+  }
+})

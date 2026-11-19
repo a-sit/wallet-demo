@@ -196,7 +196,8 @@ export function configFromHash(hash: string): PlaygroundConfig {
     if (c && Array.isArray(c.query?.credentials)) {
       return {
         query: c.query,
-        scheme: typeof c.scheme === 'string' ? c.scheme : SCHEMES[0],
+        // nur bekannte Schemata aus einem geteilten Link übernehmen
+        scheme: SCHEMES.includes(c.scheme) ? c.scheme : SCHEMES[0],
         method: c.method === 'post' ? 'post' : 'get',
         trust: c.trust === 'open' ? 'open' : 'strict'
       }

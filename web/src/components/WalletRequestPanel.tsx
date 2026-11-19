@@ -165,7 +165,7 @@ export function WalletRequestPanel(props: {
               )}
               <div className="mt-5 flex w-full flex-col gap-2">
                 {!sim && (
-                  <a href={request.deepLink} className={isMobile ? 'btn-primary' : 'btn-ghost'}>
+                  <a href={safeLink(request.deepLink)} className={isMobile ? 'btn-primary' : 'btn-ghost'}>
                     <Smartphone className="h-4 w-4" /> {t('Wallet auf diesem Gerät öffnen')}
                   </a>
                 )}
@@ -303,3 +303,6 @@ export function UsbSetupHint() {
     </details>
   )
 }
+
+/** Deep-Link nur als href verwenden, wenn er kein Skript- oder Daten-URI ist */
+const safeLink = (link: string) => (/^\s*(javascript|data|vbscript):/i.test(link) ? undefined : link)

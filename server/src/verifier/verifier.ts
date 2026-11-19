@@ -88,11 +88,17 @@ function log(s: PresentationSession, e: Omit<ProtocolEvent, 'at'>) {
  * Prüft die Optionen. Der Verifier kann nur PID (SD-JWT) und mDL (mdoc) prüfen,
  * daher sind nur diese beiden Nachweise mit genau diesen IDs zulässig.
  */
+/** Schemata, unter denen sich Wallets für OpenID4VP-Anfragen registrieren */
+export const WALLET_SCHEMES = ['openid4vp://', 'haip://', 'haip-vp://', 'eudi-openid4vp://', 'eu-eaap://', 'mdoc-openid4vp://']
+
 function validateOptions(o: PresentationOptions, free: boolean): string | undefined {
   if (o.profile !== undefined && o.profile !== 'openid4vp') return `profile "${o.profile}" wird nicht unterstützt (nur "openid4vp")`
   if (o.request_uri_method !== undefined && !['get', 'post'].includes(o.request_uri_method)) return 'request_uri_method muss "get" oder "post" sein'
   if (o.nonce !== undefined && !/^[A-Za-z0-9._~-]{16,128}$/.test(o.nonce)) return 'nonce: 16–128 Zeichen aus A–Z, a–z, 0–9, ".", "_", "~", "-"'
-  if (o.authorization_request_uri !== undefined && !/^[a-z][a-z0-9+.-]*:\/\/[^?#]*$/i.test(o.authorization_request_uri)) return 'authorization_request_uri muss ein URI ohne Query sein, z. B. "openid4vp://"'
+  // Der Deep-Link landet als href im Browser: nur bekannte Wallet-Schemata oder https, nie javascript:/data:
+  if (o.authorization_request_uri !== undefined && !WALLET_SCHEMES.includes(o.authorization_request_uri) && !/^https:\/\/[^?#\s]*$/i.test(o.authorization_request_uri)) {
+    return `authorization_request_uri: erlaubt sind ${WALLET_SCHEMES.join(', ')} oder eine https-Adresse`
+  }
   if (o.intended_use_id !== undefined && (typeof o.intended_use_id !== 'string' || o.intended_use_id.length > 128)) return 'intended_use_id: Zeichenkette bis 128 Zeichen'
   const q = o.dcql_query
   if (free) return validateDcql(q)
