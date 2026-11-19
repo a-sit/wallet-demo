@@ -101,7 +101,7 @@ export interface PlaygroundResult extends FlowStatus {
 }
 
 /** eudi: EU-Referenz-Wallet (x509_hash mit WRPAC, WRPRC, direct_post.jwt) */
-export type WalletProfile = 'eudi'
+export type WalletProfile = 'eudi' | 'standard'
 
 export interface PlaygroundRequest {
   wallet_profile?: WalletProfile

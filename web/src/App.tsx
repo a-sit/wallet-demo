@@ -45,7 +45,7 @@ export default function App() {
   const [licence, setLicence] = useState<VerifiedLicence>()
   const [mode, setModeState] = useState<WalletMode>(() => {
     try {
-      return (localStorage.getItem('walletMode') as WalletMode) || 'simulation'
+      return localStorage.getItem('walletMode') === 'simulation' ? 'simulation' : localStorage.getItem('walletMode') ? 'wallet' : 'simulation'
     } catch {
       return 'simulation'
     }

@@ -4,10 +4,12 @@ const en: Record<string, string> = {
   Smartphone: 'Smartphone',
   'Valera-Smartphone': 'Valera smartphone',
   Simulation: 'Simulation',
-  'EU-Referenz-Wallet': 'EU reference wallet',
-  "So geht's mit der EU-Referenz-Wallet": 'How it works with the EU reference wallet',
-  'EU-Referenz-Wallet öffnen (PID aus der EU-Testumgebung, ein mDL ist optional).': 'Open the EU reference wallet (PID from the EU test environment; an mDL is optional).',
-  'Den QR-Code mit der Scan-Funktion der Wallet scannen.': "Scan the QR code with the wallet's scan function.",
+  'Auch mit der EU-Referenz-Wallet': 'Also with the EU reference wallet',
+  'Derselbe QR-Code funktioniert mit der EU-Referenz-Wallet (PID aus der EU-Testumgebung): mit der Scan-Funktion der Wallet scannen und freigeben.':
+    "The same QR code works with the EU reference wallet (PID from the EU test environment): scan it with the wallet's scan function and share.",
+  'Authentifizierung des Dienstes': 'Authentication of the service',
+  'EU-Profil – x509_hash mit WRPAC, WRPRC, verschlüsselte Antwort': 'EU profile – x509_hash with WRPAC, WRPRC, encrypted response',
+  'Einfach – x509_san_dns, unverschlüsselte Antwort': 'Simple – x509_san_dns, unencrypted response',
   'Die Anfrage ist mit dem Zugangszertifikat (WRPAC) aus der Registrierung beim EU-Registrar signiert und enthält das Registrierungszertifikat (WRPRC). Die Wallet schickt ihre Antwort verschlüsselt zurück.':
     'The request is signed with the access certificate (WRPAC) from the registration with the EU registrar and contains the registration certificate (WRPRC). The wallet sends its response back encrypted.',
   'Valera-Wallet': 'Valera wallet',

@@ -5,8 +5,8 @@ import { WalletSimulator } from './WalletSimulator'
 import { getLang, locale, t } from '../i18n'
 import { tServer } from '../i18n/server'
 
-/** wallet: Valera (oder andere) am Smartphone, eudi: EU-Referenz-Wallet, simulation: Wallet-Simulator */
-export type WalletMode = 'wallet' | 'eudi' | 'simulation'
+/** wallet: Valera, EU-Referenz-Wallet u. a. am Smartphone, simulation: Wallet-Simulator */
+export type WalletMode = 'wallet' | 'simulation'
 
 /** Ist der Server für die EU-Referenz-Wallet eingerichtet (Zugangszertifikat vom EU-Registrar)? */
 let eudiConfig: Promise<boolean> | undefined
@@ -38,7 +38,7 @@ export function WalletRequestPanel(props: {
   setMode: (m: WalletMode) => void
   stages: Stage[]
   startLabel: string
-  /** profile: eudi, wenn die EU-Referenz-Wallet gewählt ist */
+  /** profile: eudi, wenn der Server das EU-Profil anbietet (ein QR-Code für Valera und die EU-Referenz-Wallet) */
   start: (profile?: WalletProfile) => Promise<WalletRequest>
   poll: () => Promise<FlowStatus>
   onCompleted: () => void
@@ -48,12 +48,11 @@ export function WalletRequestPanel(props: {
   /** Simulator: absichtlich fehlerhafte Präsentation */
   fault?: SimFault
 }) {
-  const eudiAvailable = useEudiAvailable()
-  const canEudi = props.kind === 'present' && eudiAvailable
-  // Signieren kann die EU-Referenz-Wallet hier (noch) nicht: dann wie „Smartphone“
-  const mode: WalletMode = props.mode === 'eudi' && !canEudi ? 'wallet' : props.mode
-  const eudi = mode === 'eudi'
-  const walletName = eudi ? 'EU-Referenz-Wallet' : (props.walletName ?? 'Valera-Wallet')
+  // Vorzeigen: EU-Profil (x509_hash, WRPRC, verschlüsselte Antwort) – das verstehen Valera und die EU-Referenz-Wallet.
+  // Signieren kann die EU-Referenz-Wallet hier (noch) nicht, dafür bleibt es bei Valera.
+  const eudi = useEudiAvailable() && props.kind === 'present'
+  const mode: WalletMode = props.mode === 'simulation' ? 'simulation' : 'wallet'
+  const walletName = props.walletName ?? (eudi ? 'Wallet' : 'Valera-Wallet')
   // im Fließtext: „mit der Valera-Wallet“ / „with the Valera wallet“, „with the wallet“
   const wallet = getLang() === 'en' && walletName === 'Wallet' ? 'wallet' : t(walletName)
   const { stages } = props
@@ -117,7 +116,7 @@ export function WalletRequestPanel(props: {
     <div className="space-y-6">
       <div className="flex justify-end">
         <div className="flex rounded-xl bg-slate-100 p-1 text-sm dark:bg-slate-900">
-          {(canEudi ? (['wallet', 'eudi', 'simulation'] as const) : (['wallet', 'simulation'] as const)).map((m) => (
+          {(['wallet', 'simulation'] as const).map((m) => (
             <button
               key={m}
               disabled={busy}
@@ -130,8 +129,8 @@ export function WalletRequestPanel(props: {
               }}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition ${mode === m ? 'bg-white shadow-sm dark:bg-slate-800' : 'text-slate-500'}`}
             >
-              {m === 'wallet' ? <Usb className="h-3.5 w-3.5" /> : m === 'eudi' ? <Landmark className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}
-              {m === 'wallet' ? (props.walletName ? t('Smartphone') : t('Valera-Smartphone')) : m === 'eudi' ? t('EU-Referenz-Wallet') : t('Simulation')}
+              {m === 'wallet' ? <Usb className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}
+              {m === 'wallet' ? (props.walletName || eudi ? t('Smartphone') : t('Valera-Smartphone')) : t('Simulation')}
             </button>
           ))}
         </div>
@@ -234,7 +233,12 @@ export function WalletRequestPanel(props: {
               })}
             </ol>
           </div>
-          {!sim && <div className="card p-6 text-sm">{eudi ? <EudiInstructions /> : props.instructions}</div>}
+          {!sim && (
+            <div className="card p-6 text-sm">
+              {props.instructions}
+              {eudi && <EudiHint />}
+            </div>
+          )}
         </div>
 
         {sim &&
@@ -331,29 +335,17 @@ export function UsbSetupHint() {
 /** Deep-Link nur als href verwenden, wenn er kein Skript- oder Daten-URI ist */
 const safeLink = (link: string) => (/^\s*(javascript|data|vbscript):/i.test(link) ? undefined : link)
 
-/** Anleitung für die EU-Referenz-Wallet (eudi-app-android-wallet-ui) */
-function EudiInstructions() {
-  const en = getLang() === 'en'
+/** Hinweis: derselbe QR-Code funktioniert auch mit der EU-Referenz-Wallet */
+function EudiHint() {
   return (
-    <>
-      <h3 className="flex items-center gap-2 font-semibold">
-        <Landmark className="h-4 w-4 text-brand-600" /> {t("So geht's mit der EU-Referenz-Wallet")}
-      </h3>
-      <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-slate-600 dark:text-slate-400">
-        <li>{t('EU-Referenz-Wallet öffnen (PID aus der EU-Testumgebung, ein mDL ist optional).')}</li>
-        <li>{t('Den QR-Code mit der Scan-Funktion der Wallet scannen.')}</li>
-        <li>
-          {en ? (
-            <>The wallet shows <b>“Digitales Amt Musterland (Demo)”</b> as a registered relying party. Check the requested data and share it.</>
-          ) : (
-            <>Die Wallet zeigt <b>„Digitales Amt Musterland (Demo)“</b> als registrierte Stelle an. Angefragte Daten prüfen und freigeben.</>
-          )}
-        </li>
-      </ol>
-      <p className="mt-3 rounded-xl bg-sky-50 p-3 text-xs text-sky-800 dark:bg-sky-900/30 dark:text-sky-200">
+    <div className="mt-4 rounded-xl bg-sky-50 p-3 text-xs text-sky-800 dark:bg-sky-900/30 dark:text-sky-200">
+      <div className="flex items-center gap-1.5 font-semibold">
+        <Landmark className="h-3.5 w-3.5" /> {t('Auch mit der EU-Referenz-Wallet')}
+      </div>
+      <p className="mt-1">
+        {t('Derselbe QR-Code funktioniert mit der EU-Referenz-Wallet (PID aus der EU-Testumgebung): mit der Scan-Funktion der Wallet scannen und freigeben.')}{' '}
         {t('Die Anfrage ist mit dem Zugangszertifikat (WRPAC) aus der Registrierung beim EU-Registrar signiert und enthält das Registrierungszertifikat (WRPRC). Die Wallet schickt ihre Antwort verschlüsselt zurück.')}
       </p>
-      {isLocal && <UsbSetupHint />}
-    </>
+    </div>
   )
 }

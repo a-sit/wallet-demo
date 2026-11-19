@@ -180,6 +180,13 @@ export function PlaygroundExpert({ mode, setMode }: { mode: WalletMode; setMode:
                 </label>
               </div>
               <label className="block">
+                <span className="label">{t('Authentifizierung des Dienstes')}</span>
+                <select className="input" value={config.profile} onChange={(e) => setConfig({ ...config, profile: e.target.value as 'eudi' | 'standard' })}>
+                  <option value="eudi">{t('EU-Profil – x509_hash mit WRPAC, WRPRC, verschlüsselte Antwort')}</option>
+                  <option value="standard">{t('Einfach – x509_san_dns, unverschlüsselte Antwort')}</option>
+                </select>
+              </label>
+              <label className="block">
                 <span className="label">{t('Prüfung des Ausstellers')}</span>
                 <select className="input" value={config.trust} onChange={(e) => setConfig({ ...config, trust: e.target.value as 'strict' | 'open' })}>
                   <option value="strict">{t('Streng – nur Aussteller aus der Liste des PoC')}</option>
@@ -221,8 +228,9 @@ export function PlaygroundExpert({ mode, setMode }: { mode: WalletMode; setMode:
             setResult(undefined)
             // EU-Referenz-Wallet: eigenes Schema eudi-openid4vp:// (Voreinstellung des Servers für dieses Profil)
             const r = await api.playground({
-              dcql_query: query, request_uri_method: config.method, trust: config.trust,
-              ...(profile ? { wallet_profile: profile } : { authorization_request_uri: config.scheme })
+              dcql_query: query, request_uri_method: config.method, trust: config.trust, authorization_request_uri: config.scheme,
+              // EU-Profil nur, wenn der Server es anbietet (profile gesetzt)
+              wallet_profile: profile && config.profile === 'eudi' ? 'eudi' : 'standard'
             })
             idRef.current = r.id
             return r

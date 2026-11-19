@@ -33,21 +33,32 @@ const trusted = new Map<string, string>([...Object.entries(BUILT_IN), ...configu
  * der CA-Zertifikate darin ausgestellt und signiert wurde. So passen auch PID und mDL aus der
  * EU-Referenzimplementierung, deren Signaturzertifikate regelmäßig wechseln.
  */
-const anchorsFile = path.join(path.dirname(fileURLToPath(import.meta.url)), 'trust-anchors/eu-pid-providers.pem')
-const ANCHORS = (fs.existsSync(anchorsFile) ? fs.readFileSync(anchorsFile, 'utf8').match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [] : [])
-  .map((pem) => new crypto.X509Certificate(pem))
+function loadAnchors(name: string) {
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), 'trust-anchors', name)
+  return (fs.existsSync(file) ? fs.readFileSync(file, 'utf8').match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [] : [])
+    .map((pem) => new crypto.X509Certificate(pem))
+}
+const ANCHORS = loadAnchors('eu-pid-providers.pem')
+/** Aussteller von Zugangszertifikaten (WRPAC), LoTE WRPACProviders.jwt – für den Wallet-Simulator */
+const WRPAC_ANCHORS = loadAnchors('eu-wrpac-providers.pem')
 const cn = (dn: string) => /CN=([^\n,]+)/.exec(dn)?.[1] ?? dn
 const country = (dn: string) => /C=([A-Z]{2})/.exec(dn)?.[1]
 
-function anchoredBy(cert: crypto.X509Certificate) {
+function anchoredBy(cert: crypto.X509Certificate, anchors = ANCHORS) {
   const now = Date.now()
   const valid = (c: crypto.X509Certificate) => new Date(c.validFrom).getTime() <= now && now <= new Date(c.validTo).getTime()
   if (!valid(cert)) return undefined
-  for (const a of ANCHORS) {
+  for (const a of anchors) {
     if (a.fingerprint256 === cert.fingerprint256) return a
     if (valid(a) && cert.checkIssued(a) && cert.verify(a.publicKey)) return a
   }
   return undefined
+}
+
+/** Stammt ein Zugangszertifikat (WRPAC) von einem Aussteller der EU-Testvertrauensliste? */
+export function accessCertificateAnchor(cert: crypto.X509Certificate) {
+  const a = anchoredBy(cert, WRPAC_ANCHORS)
+  return a && `${cn(a.subject)} (${country(a.subject)})`
 }
 
 /** Der Wallet-Simulator meldet seine lokal erzeugten Test-Aussteller an */

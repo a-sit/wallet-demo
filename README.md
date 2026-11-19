@@ -45,10 +45,12 @@ Ohne Smartphone: Modus „Simulation" – der eingebaute Wallet-Simulator nutzt 
 ## Mit der EU-Referenz-Wallet testen
 
 Die [EU-Referenz-Wallet](https://github.com/eu-digital-identity-wallet/eudi-app-android-wallet-ui/releases) vertraut nur
-Diensten, die beim EU-Registrar eingetragen sind. Für sie gibt es ein eigenes Profil (Modus „EU-Referenz-Wallet",
-API: `wallet_profile: "eudi"`):
+Diensten, die beim EU-Registrar eingetragen sind. Dafür gibt es das EU-Profil (API: `wallet_profile: "eudi"`). Valera
+versteht es ebenso, deshalb nutzt die GUI beim Vorzeigen **einen** QR-Code für beide Wallets, sobald die Zertifikate
+vorhanden sind. Das einfache Profil bleibt API-Voreinstellung und ist im Experten-Playground wählbar – für Wallets,
+die `x509_hash` oder verschlüsselte Antworten nicht unterstützen.
 
-| | Standard (Valera u. a.) | EU-Referenz-Wallet |
+| | Einfach (`standard`) | EU-Profil (`eudi`) |
 |---|---|---|
 | `client_id` | `x509_san_dns:<host>` | `x509_hash:<SHA-256 des Zugangszertifikats>` |
 | Request Object signiert mit | selbst ausgestelltem Zertifikat (`.data/rp.json`) | Zugangszertifikat (WRPAC) vom EU-Registrar |

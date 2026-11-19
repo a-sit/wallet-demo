@@ -16,6 +16,8 @@ export interface PlaygroundConfig {
   scheme: string
   method: 'get' | 'post'
   trust: 'strict' | 'open'
+  /** eudi: x509_hash mit WRPAC, WRPRC, verschlüsselte Antwort; standard: x509_san_dns, unverschlüsselt */
+  profile: 'eudi' | 'standard'
 }
 
 export interface CredentialType {
@@ -186,7 +188,7 @@ export const SCENARIOS: Scenario[] = [
 
 export const SCHEMES = ['openid4vp://', 'haip-vp://', 'eudi-openid4vp://', 'eu-eaap://', 'mdoc-openid4vp://']
 
-export const DEFAULT_CONFIG: PlaygroundConfig = { query: SCENARIOS[0].query, scheme: SCHEMES[0], method: 'get', trust: 'strict' }
+export const DEFAULT_CONFIG: PlaygroundConfig = { query: SCENARIOS[0].query, scheme: SCHEMES[0], method: 'get', trust: 'strict', profile: 'eudi' }
 
 /** Konfiguration aus einem geteilten Link (#/playground?c=…) */
 export function configFromHash(hash: string): PlaygroundConfig {
@@ -199,7 +201,8 @@ export function configFromHash(hash: string): PlaygroundConfig {
         // nur bekannte Schemata aus einem geteilten Link übernehmen
         scheme: SCHEMES.includes(c.scheme) ? c.scheme : SCHEMES[0],
         method: c.method === 'post' ? 'post' : 'get',
-        trust: c.trust === 'open' ? 'open' : 'strict'
+        trust: c.trust === 'open' ? 'open' : 'strict',
+        profile: c.profile === 'standard' ? 'standard' : 'eudi'
       }
     }
   } catch {

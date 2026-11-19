@@ -234,7 +234,8 @@ function StoryPage({ story, mode, setMode }: { story: Story; mode: WalletMode; s
             // Im Playground soll jede Wallet funktionieren: Ein unbekannter Aussteller führt nur zu einem Hinweis
             const r = await api.playground({
               dcql_query: query, request_uri_method: 'get', trust: 'open',
-              ...(profile ? { wallet_profile: profile } : { authorization_request_uri: 'openid4vp://' })
+              authorization_request_uri: 'openid4vp://',
+              ...(profile ? { wallet_profile: profile } : {})
             })
             idRef.current = r.id
             return r

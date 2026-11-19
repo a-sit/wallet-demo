@@ -3,6 +3,7 @@ import { API_PORT, PUBLIC_URL } from '../config.js'
 import { certFromX5c, decodeJwt, encryptJwe, jwkThumbprint, verifyJws } from '../crypto/jose.js'
 import { FAULTS, TEST_WALLET, mdocPresentation, sdJwtPresentation, testSignPdf, type Fault, type TestCredential } from './testCredentials.js'
 import { defaultSelection, type DcqlCredential, type DcqlQuery } from '../verifier/dcql.js'
+import { accessCertificateAnchor } from '../verifier/trust.js'
 
 /**
  * Der Simulator läuft im selben Prozess wie der Server. Er ruft die eigenen
@@ -69,9 +70,7 @@ export async function inspectRequest(deepLink: unknown) {
       byHash
         ? { label: 'Antwort wird verschlüsselt', detail: `response_mode ${payload.response_mode}, Antwort an ${responseHost}`, ok: payload.response_mode === 'direct_post.jwt' && !!payload.client_metadata?.jwks?.keys?.length }
         : { label: `Antwort geht nur an ${host}`, detail: `response_uri-Host ${responseHost} = client_id-Host`, ok: responseHost === host },
-      rc
-        ? { label: 'Im EU-Register eingetragen', detail: `Registrierungszertifikat (WRPRC) liegt bei, Zugangszertifikat von ${cert.issuer.replace(/\n/g, ', ')} – Vertrauensliste im Simulator nicht geprüft`, ok: null as boolean | null }
-        : { label: 'Im EU-Register eingetragen', detail: 'Zugangszertifikat (WRPAC) gegen die Vertrauensliste – im PoC nicht geprüft', ok: null as boolean | null }
+      registration(cert, rc)
     ],
     certificate: cert.subject.replace(/\n/g, ', ')
   }
@@ -87,6 +86,30 @@ async function respond(payload: Record<string, any>, fields: Record<string, unkn
   const enc = (payload.client_metadata?.encrypted_response_enc_values_supported ?? ['A128GCM'])[0]
   const response = encryptJwe(fields, key, { enc, apu: crypto.randomBytes(16), apv: Buffer.from(String(payload.nonce)) })
   return postForm(payload.response_uri, { response })
+}
+
+/**
+ * Wie die EU-Referenz-Wallet: Zugangszertifikat gegen die WRPAC-Aussteller der EU-Testvertrauensliste,
+ * Registrierungszertifikat (WRPRC) vorhanden, signiert und an denselben Dienst gebunden (organizationIdentifier).
+ * Nicht erfüllt heißt hier „nicht registriert“ (Hinweis), nicht „gefälscht“.
+ */
+function registration(cert: crypto.X509Certificate, rc: { data?: unknown } | undefined): { label: string; detail: string; ok: boolean | null } {
+  const label = 'Im EU-Register eingetragen'
+  const anchor = accessCertificateAnchor(cert)
+  if (!anchor) return { label, detail: 'Zugangszertifikat stammt nicht von einem Aussteller der EU-Vertrauensliste (WRPAC Providers)', ok: null }
+  if (typeof rc?.data !== 'string') return { label, detail: `Zugangszertifikat von ${anchor}, aber kein Registrierungszertifikat (WRPRC)`, ok: null }
+  try {
+    const { header, payload } = decodeJwt(rc.data)
+    const rcCert = certFromX5c(header.x5c[0])
+    const orgId = (dn: string) => /organizationIdentifier=([^\n,]+)|2\.5\.4\.97=([^\n,]+)/.exec(dn)?.slice(1).find(Boolean)
+    const bound = !!orgId(cert.subject) && payload.sub === orgId(cert.subject)
+    const ok = header.typ === 'rc-wrp+jwt' && verifyJws(rc.data, rcCert.publicKey) && bound
+    return ok
+      ? { label, detail: `Zugangszertifikat von ${anchor}, Registrierungszertifikat „${payload.name ?? payload.sub_ln ?? '?'}“ gültig signiert`, ok: true }
+      : { label, detail: 'Registrierungszertifikat (WRPRC) ungültig oder nicht an das Zugangszertifikat gebunden', ok: null }
+  } catch {
+    return { label, detail: 'Registrierungszertifikat (WRPRC) nicht lesbar', ok: null }
+  }
 }
 
 async function postForm(url: string, fields: Record<string, string>) {
