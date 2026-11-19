@@ -3,8 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CLIENT_ID, PUBLIC_URL, RP_HOST, SESSION_TTL_MS } from '../config.js'
-import { signJws } from '../crypto/jose.js'
-import { loadIdentity } from '../crypto/identities.js'
+import { decryptJwe, jwkThumbprint, signJws } from '../crypto/jose.js'
+import { loadEuAccess, loadIdentity } from '../crypto/identities.js'
 import { pidDcqlQuery, pidToPerson, type VerifiedPerson } from './pid.js'
 import { verifySdJwtPresentation, type Check } from './sdjwt.js'
 import { mdlDcqlCredential, mdlToLicence, verifyMdocPresentation, type VerifiedLicence } from './mdoc.js'
@@ -19,7 +19,16 @@ import type { ProtocolEvent } from '../events.js'
  *  2. GET  /oid4vp/request/:id   Wallet lädt das signierte Request Object (JAR, x5c)
  *  3. POST /oid4vp/response/:id  Wallet sendet vp_token (direct_post)
  *  4. Verifier prüft SD-JWT, Disclosures und Key Binding (nonce, aud)
+ *
+ * Zwei Profile:
+ *  - standard (Valera u. a.): client_id x509_san_dns, selbst ausgestelltes Zertifikat, direct_post
+ *  - eudi (EU-Referenz-Wallet): client_id x509_hash mit dem Zugangszertifikat (WRPAC) aus der
+ *    Registrierung beim EU-Registrar, Registrierungszertifikat (WRPRC) als verifier_info und
+ *    verschlüsselte Antwort (direct_post.jwt, ECDH-ES) wie im HAIP-Profil gefordert
  */
+
+export type WalletProfile = 'standard' | 'eudi'
+export const WALLET_PROFILES: WalletProfile[] = ['standard', 'eudi']
 
 export type PresentationState = 'WAITING_FOR_WALLET' | 'WALLET_CONNECTED' | 'COMPLETED' | 'FAILED' | 'EXPIRED'
 
@@ -45,6 +54,10 @@ export interface PresentationSession {
   events: ProtocolEvent[]
   dcqlQuery: DcqlQuery
   requestUriMethod: 'get' | 'post'
+  profile: WalletProfile
+  clientId: string
+  /** eudi: Schlüssel, an den die Wallet die Antwort verschlüsselt (je Sitzung neu) */
+  encryption?: { privateKey: crypto.KeyObject; jwk: crypto.JsonWebKey & { kid: string; alg: string; use: string } }
   /** Kennung des registrierten Verwendungszwecks (Register der vertrauenden Stellen) */
   intendedUseId?: string
   /** Playground: freie Abfrage, Ergebnis je Nachweis statt Übernahme in einen Antrag */
@@ -63,6 +76,8 @@ export interface PresentationOptions {
   request_uri_method?: string
   authorization_request_uri?: string
   intended_use_id?: string
+  /** standard (Voreinstellung) oder eudi (EU-Referenz-Wallet) */
+  wallet_profile?: string
 }
 
 const sessions = new Map<string, PresentationSession>()
@@ -99,6 +114,7 @@ function validateOptions(o: PresentationOptions, free: boolean): string | undefi
   if (o.authorization_request_uri !== undefined && !WALLET_SCHEMES.includes(o.authorization_request_uri) && !/^https:\/\/[^?#\s]*$/i.test(o.authorization_request_uri)) {
     return `authorization_request_uri: erlaubt sind ${WALLET_SCHEMES.join(', ')} oder eine https-Adresse`
   }
+  if (o.wallet_profile !== undefined && !WALLET_PROFILES.includes(o.wallet_profile as WalletProfile)) return `wallet_profile muss ${WALLET_PROFILES.map((p) => `"${p}"`).join(' oder ')} sein`
   if (o.intended_use_id !== undefined && (typeof o.intended_use_id !== 'string' || o.intended_use_id.length > 128)) return 'intended_use_id: Zeichenkette bis 128 Zeichen'
   const q = o.dcql_query
   if (free) return validateDcql(q)
@@ -114,22 +130,33 @@ export async function createPresentationRequest(o: PresentationOptions = {}, pla
   const invalid = validateOptions(o, !!playground)
   if (invalid) return { error: invalid }
   await rp()
+  const profile = (o.wallet_profile as WalletProfile | undefined) ?? 'standard'
+  const eu = profile === 'eudi' ? await loadEuAccess() : undefined
+  if (profile === 'eudi' && !eu) return { error: 'Das EU-Profil ist auf diesem Server nicht eingerichtet (Zugangszertifikat fehlt)' }
+  let encryption: PresentationSession['encryption']
+  if (eu) {
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' })
+    const { kty, crv, x, y } = publicKey.export({ format: 'jwk' })
+    encryption = { privateKey, jwk: { kty, crv, x, y, kid: crypto.randomUUID(), alg: 'ECDH-ES', use: 'enc' } }
+  }
   const s: PresentationSession = {
     id: crypto.randomUUID(), requestId: crypto.randomUUID(), nonce: o.nonce ?? crypto.randomUUID(), state: crypto.randomUUID(),
     createdAt: Date.now(), status: 'WAITING_FOR_WALLET', events: [],
     dcqlQuery: o.dcql_query ?? dcqlQuery(),
     requestUriMethod: (o.request_uri_method as 'get' | 'post' | undefined) ?? 'get',
     intendedUseId: o.intended_use_id,
+    profile, clientId: eu?.clientId ?? CLIENT_ID, encryption,
     playground
   }
   sessions.set(s.id, s)
   byRequestId.set(s.requestId, s)
   const requestUri = `${PUBLIC_URL}/oid4vp/request/${s.requestId}`
-  const params = new URLSearchParams({ client_id: CLIENT_ID, request_uri: requestUri, request_uri_method: s.requestUriMethod })
-  const deepLink = `${o.authorization_request_uri ?? 'openid4vp://'}?${params.toString().replace(/\+/g, '%20')}`
+  const params = new URLSearchParams({ client_id: s.clientId, request_uri: requestUri, request_uri_method: s.requestUriMethod })
+  const scheme = o.authorization_request_uri ?? (profile === 'eudi' ? 'eudi-openid4vp://' : 'openid4vp://')
+  const deepLink = `${scheme}?${params.toString().replace(/\+/g, '%20')}`
   log(s, {
     direction: 'info', title: 'Präsentationsanfrage angelegt',
-    detail: { client_id: CLIENT_ID, request_uri: requestUri, request_uri_method: s.requestUriMethod, intended_use_id: s.intendedUseId, dcql_query: s.dcqlQuery }
+    detail: { wallet_profile: profile, client_id: s.clientId, request_uri: requestUri, request_uri_method: s.requestUriMethod, intended_use_id: s.intendedUseId, dcql_query: s.dcqlQuery }
   })
   return { id: s.id, deepLink, requestUri, nonce: s.nonce }
 }
@@ -157,6 +184,8 @@ function expire(s: PresentationSession | undefined) {
 export const getPresentation = (id: string) => expire(sessions.get(id))
 
 const responseUri = (s: PresentationSession) => `${PUBLIC_URL}/oid4vp/response/${s.requestId}`
+/** mdoc-SessionTranscript: bei verschlüsselter Antwort fließt der Thumbprint des Verifier-Schlüssels ein */
+const thumbprint = (s: PresentationSession) => (s.encryption ? jwkThumbprint(s.encryption.jwk) : undefined)
 
 /**
  * Request Object (JWT-secured Authorization Request, RFC 9101).
@@ -166,21 +195,25 @@ export async function presentationRequestObject(requestId: string, method: 'get'
   const s = expire(byRequestId.get(requestId))
   if (!s || !OPEN.includes(s.status)) return undefined
   if (method === 'post' && s.requestUriMethod !== 'post') return undefined
-  const { privateKey, certB64 } = await rp()
+  const eu = s.profile === 'eudi' ? await loadEuAccess() : undefined
+  const local = await rp()
+  const { privateKey, x5c } = eu ?? { privateKey: local.privateKey, x5c: [local.certB64] }
   const payload = {
-    iss: CLIENT_ID,
+    iss: s.clientId,
     aud: 'https://self-issued.me/v2',
     iat: Math.floor(Date.now() / 1000),
     response_type: 'vp_token',
-    client_id: CLIENT_ID,
-    response_mode: 'direct_post',
+    client_id: s.clientId,
+    response_mode: s.encryption ? 'direct_post.jwt' : 'direct_post',
     response_uri: responseUri(s),
     nonce: s.nonce,
     state: s.state,
     ...(walletNonce ? { wallet_nonce: walletNonce } : {}),
     dcql_query: s.dcqlQuery,
+    ...(eu ? { verifier_info: [{ format: 'registration_cert', data: eu.wrprc }] } : {}),
     client_metadata: {
       client_name: 'Digitales Amt Musterland (PoC)',
+      ...(s.encryption ? { jwks: { keys: [s.encryption.jwk] }, encrypted_response_enc_values_supported: ['A128GCM', 'A256GCM'] } : {}),
       vp_formats_supported: {
         'dc+sd-jwt': { 'sd-jwt_alg_values': ['ES256', 'ES384', 'ES512'], 'kb-jwt_alg_values': ['ES256', 'ES384', 'ES512'] },
         mso_mdoc: { issuerauth_alg_values: [-7, -35, -36], deviceauth_alg_values: [-7, -35, -36] }
@@ -189,7 +222,7 @@ export async function presentationRequestObject(requestId: string, method: 'get'
   }
   if (s.status === 'WAITING_FOR_WALLET') s.status = 'WALLET_CONNECTED'
   log(s, { direction: 'in', title: 'Wallet hat Request Object abgerufen', detail: payload })
-  return signJws({ typ: 'oauth-authz-req+jwt', x5c: [certB64] }, payload, privateKey)
+  return signJws({ typ: 'oauth-authz-req+jwt', x5c }, payload, privateKey)
 }
 
 /** Nur mit DEBUG_VP=1: Rohantwort der Wallet zur Fehleranalyse unter .data/vp-debug/ ablegen (enthält Personendaten!) */
@@ -212,8 +245,30 @@ function fail(s: PresentationSession, error: string) {
 export function handlePresentationResponse(requestId: string, raw: Record<string, unknown>) {
   const s = expire(byRequestId.get(requestId))
   if (!s) return { status: 404, body: { error: 'unknown_session' } }
-  const field = (k: string) => (typeof raw?.[k] === 'string' ? (raw[k] as string) : undefined)
-  const body = { vp_token: field('vp_token'), state: field('state'), error: field('error'), error_description: field('error_description') }
+  // direct_post.jwt: alle Parameter stecken verschlüsselt in "response"
+  let fields: Record<string, unknown> = raw ?? {}
+  if (s.encryption && OPEN.includes(s.status)) {
+    if (typeof raw?.response !== 'string') {
+      log(s, { direction: 'in', title: 'Antwort verworfen', detail: { grund: 'unverschlüsselte Antwort, erwartet direct_post.jwt' } })
+      return { status: 400, body: { error: 'invalid_request' } }
+    }
+    try {
+      const { header, payload } = decryptJwe(raw.response, s.encryption.privateKey)
+      if (header.kid !== undefined && header.kid !== s.encryption.jwk.kid) throw new Error('kid passt nicht')
+      fields = payload
+      log(s, { direction: 'in', title: 'Verschlüsselte Antwort entschlüsselt (direct_post.jwt)', detail: { alg: header.alg, enc: header.enc, kid: header.kid } })
+    } catch (e) {
+      log(s, { direction: 'in', title: 'Antwort verworfen', detail: { grund: `JWE nicht entschlüsselbar: ${(e as Error).message}` } })
+      return { status: 400, body: { error: 'invalid_request' } }
+    }
+  }
+  const field = (k: string) => (typeof fields[k] === 'string' ? (fields[k] as string) : undefined)
+  // im verschlüsselten JWT ist vp_token ein JSON-Objekt, im Formular ein JSON-String
+  const vpRaw = fields.vp_token
+  const body = {
+    vp_token: typeof vpRaw === 'string' ? vpRaw : vpRaw && typeof vpRaw === 'object' ? JSON.stringify(vpRaw) : undefined,
+    state: field('state'), error: field('error'), error_description: field('error_description')
+  }
 
   // Die request_uri steht im QR-Code. Wer sie kennt, aber nicht den state aus dem Request Object,
   // darf die Sitzung weder abschließen noch scheitern lassen; eine fertige Sitzung bleibt unverändert.
@@ -222,7 +277,7 @@ export function handlePresentationResponse(requestId: string, raw: Record<string
     return { status: 400, body: { error: 'invalid_request' } }
   }
   dumpResponse(s.id, body)
-  log(s, { direction: 'in', title: 'Antwort der Wallet erhalten (direct_post)', detail: { ...body, vp_token: body.vp_token && body.vp_token.slice(0, 120) + '…' } })
+  log(s, { direction: 'in', title: s.encryption ? 'Antwort der Wallet erhalten (direct_post.jwt)' : 'Antwort der Wallet erhalten (direct_post)', detail: { ...body, vp_token: body.vp_token && body.vp_token.slice(0, 120) + '…' } })
 
   if (body.error) {
     fail(s, body.error === 'access_denied' ? 'Freigabe in der Wallet abgelehnt' : `Wallet meldet Fehler: ${body.error_description ?? body.error}`)
@@ -243,7 +298,7 @@ export function handlePresentationResponse(requestId: string, raw: Record<string
       /* kompakter String */
     }
     if (s.playground) {
-      const r = evaluate(s.dcqlQuery, typeof token === 'string' ? {} : token, { clientId: CLIENT_ID, nonce: s.nonce, responseUri: responseUri(s), trust: s.playground.trust })
+      const r = evaluate(s.dcqlQuery, typeof token === 'string' ? {} : token, { clientId: s.clientId, nonce: s.nonce, responseUri: responseUri(s), jwkThumbprint: thumbprint(s), trust: s.playground.trust })
       s.credentials = r.credentials
       // Fehlschläge einzelner Nachweise auch im Server-Log nennen (fail() liest s.checks)
       s.checks = [...r.checks, ...r.credentials.flatMap((c) => c.checks.filter((k) => k.ok === false).map((k) => ({ ...k, label: `${c.id}: ${k.label}` })))]
@@ -259,7 +314,7 @@ export function handlePresentationResponse(requestId: string, raw: Record<string
     }
     const pid = first('pid')
     if (!pid) throw new Error('vp_token enthält keine PID')
-    const result = verifySdJwtPresentation(pid, { nonce: s.nonce, audience: CLIENT_ID })
+    const result = verifySdJwtPresentation(pid, { nonce: s.nonce, audience: s.clientId })
     s.checks = result.checks
     s.claims = result.claims
     s.issuer = result.issuerCertificate ?? result.issuer
@@ -272,7 +327,7 @@ export function handlePresentationResponse(requestId: string, raw: Record<string
 
     const mdl = first('mdl')
     if (mdl) {
-      const m = verifyMdocPresentation(mdl, { clientId: CLIENT_ID, nonce: s.nonce, responseUri: responseUri(s) })
+      const m = verifyMdocPresentation(mdl, { clientId: s.clientId, nonce: s.nonce, responseUri: responseUri(s), jwkThumbprint: thumbprint(s) })
       const licence = mdlToLicence(m.claims)
       // mDL und PID müssen dieselbe Person beschreiben
       const norm = (v?: string) => (v ?? '').normalize('NFC').trim().toLocaleLowerCase('de')

@@ -229,10 +229,13 @@ function StoryPage({ story, mode, setMode }: { story: Story; mode: WalletMode; s
           walletName="Wallet"
           fault={fault || undefined}
           startLabel={t('Anfrage starten')}
-          start={async () => {
+          start={async (profile) => {
             setResult(undefined)
             // Im Playground soll jede Wallet funktionieren: Ein unbekannter Aussteller führt nur zu einem Hinweis
-            const r = await api.playground({ dcql_query: query, authorization_request_uri: 'openid4vp://', request_uri_method: 'get', trust: 'open' })
+            const r = await api.playground({
+              dcql_query: query, request_uri_method: 'get', trust: 'open',
+              ...(profile ? { wallet_profile: profile } : { authorization_request_uri: 'openid4vp://' })
+            })
             idRef.current = r.id
             return r
           }}

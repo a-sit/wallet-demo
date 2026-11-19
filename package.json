@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit -p .",
     "test": "tsx --test server/test/*.test.ts",
     "guide": "node scripts/build-guide.mjs",
-    "bundle": "npm run build && COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs --exclude node_modules --exclude .data --exclude .claude --exclude .DS_Store --exclude '*.tar.gz' -czf wallet-demo.tar.gz package.json package-lock.json tsconfig.json vite.config.ts tailwind.config.js server web docs deploy scripts README.md"
+    "bundle": "npm run build && COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs --exclude node_modules --exclude .data --exclude .claude --exclude .DS_Store --exclude '*.tar.gz' --exclude deploy/eu-launchpad --exclude deploy/LOCAL.md -czf wallet-demo.tar.gz package.json package-lock.json tsconfig.json vite.config.ts tailwind.config.js server web docs deploy scripts README.md"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

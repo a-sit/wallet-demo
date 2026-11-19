@@ -216,10 +216,14 @@ export function PlaygroundExpert({ mode, setMode }: { mode: WalletMode; setMode:
           walletName="Wallet"
           fault={fault || undefined}
           startLabel={t('Anfrage erstellen')}
-          start={async () => {
+          start={async (profile) => {
             if (jsonError) throw new Error(t('Die DCQL-Abfrage ist kein gültiges JSON: {error}', { error: jsonError }))
             setResult(undefined)
-            const r = await api.playground({ dcql_query: query, authorization_request_uri: config.scheme, request_uri_method: config.method, trust: config.trust })
+            // EU-Referenz-Wallet: eigenes Schema eudi-openid4vp:// (Voreinstellung des Servers für dieses Profil)
+            const r = await api.playground({
+              dcql_query: query, request_uri_method: config.method, trust: config.trust,
+              ...(profile ? { wallet_profile: profile } : { authorization_request_uri: config.scheme })
+            })
             idRef.current = r.id
             return r
           }}

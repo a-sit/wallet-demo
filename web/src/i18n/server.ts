@@ -84,6 +84,11 @@ const EXACT: Record<string, string> = {
   'Wallet hat das Dokument geladen (Anzeige, Zustimmung, Signatur beim QTSP)': 'Wallet loaded the document (display, consent, signature at the QTSP)',
   'Antwort verworfen': 'Response discarded',
   'Antwort der Wallet erhalten (direct_post)': 'Response received from the wallet (direct_post)',
+  'Antwort der Wallet erhalten (direct_post.jwt)': 'Response received from the wallet (direct_post.jwt)',
+  'Antwort wird verschlüsselt': 'Response is encrypted',
+  'client_id x509_hash = SHA-256 des Zugangszertifikats (WRPAC)': 'client_id x509_hash = SHA-256 of the access certificate (WRPAC)',
+  'Verschlüsselte Antwort entschlüsselt (direct_post.jwt)': 'Encrypted response decrypted (direct_post.jwt)',
+  'Das EU-Profil ist auf diesem Server nicht eingerichtet (Zugangszertifikat fehlt)': 'The EU profile is not set up on this server (access certificate missing)',
   'Nachweise geprüft: gültig': 'Credentials verified: valid',
   'Nachweise geprüft: ungültig': 'Credentials verified: invalid',
   'PID geprüft: gültig': 'PID verified: valid',
@@ -149,6 +154,9 @@ const PATTERNS: [RegExp, Replacer][] = [
     /^geliefert: (.*) – (Pflicht und Alternativen laut credential_sets|alle Nachweise sind Pflicht)$/s,
     (m) => `delivered: ${m[1] === 'nichts' ? 'nothing' : m[1]} – ${m[2].startsWith('alle') ? 'all credentials are required' : 'required and alternatives as per credential_sets'}`
   ],
+  [/^(.+), ausgestellt von (.+) \(([A-Z]{2})\) – EU-Testvertrauensliste \(LoTE PID Providers\)$/s, (m) => `${m[1]}, issued by ${m[2]} (${m[3]}) – EU test trusted list (LoTE PID Providers)`],
+  [/^response_mode (\S+), Antwort an (\S+)$/s, (m) => `response_mode ${m[1]}, response to ${m[2]}`],
+  [/^Registrierungszertifikat \(WRPRC\) liegt bei, Zugangszertifikat von (.+) – Vertrauensliste im Simulator nicht geprüft$/s, (m) => `Registration certificate (WRPRC) included, access certificate from ${m[1]} – trusted list not checked in the simulator`],
   [/^(.+) – feste Liste des PoC, produktiv EU Trusted List$/s, (m) => `${translateServerText(m[1])} – fixed list of the PoC, EU Trusted List in production`],
   [
     /^Zertifikat nicht in der Liste vertrauter Aussteller \(SHA-256 ([^)]*)\)( – offene Prüfung: nur Warnung)?$/,

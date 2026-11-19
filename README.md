@@ -42,6 +42,28 @@ die der Server abweisen muss. `npm run guide` baut die HTML-Fassung des Leitfade
 
 Ohne Smartphone: Modus „Simulation" – der eingebaute Wallet-Simulator nutzt dieselben Protokoll-Endpunkte.
 
+## Mit der EU-Referenz-Wallet testen
+
+Die [EU-Referenz-Wallet](https://github.com/eu-digital-identity-wallet/eudi-app-android-wallet-ui/releases) vertraut nur
+Diensten, die beim EU-Registrar eingetragen sind. Für sie gibt es ein eigenes Profil (Modus „EU-Referenz-Wallet",
+API: `wallet_profile: "eudi"`):
+
+| | Standard (Valera u. a.) | EU-Referenz-Wallet |
+|---|---|---|
+| `client_id` | `x509_san_dns:<host>` | `x509_hash:<SHA-256 des Zugangszertifikats>` |
+| Request Object signiert mit | selbst ausgestelltem Zertifikat (`.data/rp.json`) | Zugangszertifikat (WRPAC) vom EU-Registrar |
+| `verifier_info` | – | Registrierungszertifikat (WRPRC), `format: registration_cert` |
+| Antwort | `direct_post` | `direct_post.jwt` (ECDH-ES, A128GCM/A256GCM, Schlüssel je Sitzung) |
+| Deep-Link | `openid4vp://` | `eudi-openid4vp://` |
+
+Die Zertifikate stammen aus dem [Launchpad-Registrar](https://github.com/eu-digital-identity-wallet/eudi-srv-web-relyingparty-registration-py/blob/main/launchpad2026.md)
+und liegen **nicht** im Repository. Der Dienst sucht `wrpac.p12`, `wrpac.password` und `wrprc.jwt` in `EU_ACCESS_DIR`,
+sonst in `.data/eu-launchpad/` bzw. `deploy/eu-launchpad/`. Fehlen sie, bietet die GUI das Profil nicht an.
+PID und mDL aus der EU-Testumgebung gelten als vertrauenswürdig, wenn ihr Ausstellerzertifikat von einer CA aus der
+[LoTE-Liste der PID-Provider](https://trustedlist.serviceproviders.eudiw.dev/LOTE/json/PIDProviders.jwt) stammt
+([server/src/verifier/trust-anchors/](server/src/verifier/trust-anchors/eu-pid-providers.pem)).
+Signieren mit der EU-Referenz-Wallet (`transaction_data` vom Typ QES) ist noch nicht umgesetzt.
+
 ## Öffentlicher Betrieb (https://wallet-demo.a-sit.at/)
 
 Mit öffentlichem HTTPS brauchen Sie weder `adb reverse` noch die Debug-APK – die normale Valera-App funktioniert.
@@ -91,6 +113,7 @@ weiter. Port 3001 auf dem Backend-Server nur für den Frontend-Proxy öffnen.
 | `RETENTION_MINUTES` | `60` | Anträge, PID- und mDL-Daten werden danach aus dem Speicher gelöscht |
 | `TRUSTED_ISSUERS` | nicht gesetzt | zusätzliche Aussteller von PID/mDL: SHA-256-Fingerabdrücke ihrer Zertifikate, kommagetrennt. Eingebaut sind die A-SIT-Test-Aussteller und der Simulator; `any` schaltet die Prüfung ab. |
 | `RATE_LIMIT_CREATE` / `RATE_LIMIT_SIM` | `60` / `180` | Anfragen bzw. Simulator-Aufrufe je IP in 10 Minuten |
+| `EU_ACCESS_DIR` | `.data/eu-launchpad` | Zugangs- und Registrierungszertifikat vom EU-Registrar (siehe oben) |
 | `DEBUG_VP` | nicht gesetzt | `1` legt die Rohantworten der Wallet unter `.data/vp-debug/` ab – nur zur Fehlersuche, enthält Personendaten |
 
 Ändert sich die `PUBLIC_URL`, erzeugt der Dienst beim Start ein neues Request-Zertifikat mit passendem SAN.

@@ -100,9 +100,13 @@ export interface PlaygroundResult extends FlowStatus {
   credentials?: CredentialResult[]
 }
 
+/** eudi: EU-Referenz-Wallet (x509_hash mit WRPAC, WRPRC, direct_post.jwt) */
+export type WalletProfile = 'eudi'
+
 export interface PlaygroundRequest {
+  wallet_profile?: WalletProfile
   dcql_query: unknown
-  authorization_request_uri: string
+  authorization_request_uri?: string
   request_uri_method: 'get' | 'post'
   trust: 'strict' | 'open'
 }
@@ -174,8 +178,8 @@ export const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hos
 const post = (body: unknown) => ({ method: 'POST', body: JSON.stringify(body) })
 
 export const api = {
-  config: () => call<{ publicUrl: string; clientId: string }>('api/config'),
-  identify: () => call<WalletRequest>('api/identifications', post({})),
+  config: () => call<{ publicUrl: string; clientId: string; eudi: { clientId: string; issuer: string } | null }>('api/config'),
+  identify: (profile?: WalletProfile) => call<WalletRequest>('api/identifications', post(profile ? { wallet_profile: profile } : {})),
   identification: (id: string) => call<Identification>(`api/identifications/${id}`),
   create: (form: ApplicationForm, identificationId?: string) =>
     call<CreatedApplication>('api/applications', post({ ...form, identificationId })),

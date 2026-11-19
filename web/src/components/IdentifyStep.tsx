@@ -33,8 +33,8 @@ export function IdentifyStep(props: {
         setMode={props.setMode}
         stages={STAGES.map((s) => ({ ...s, title: t(s.title), text: t(s.text) }))}
         startLabel={t('Ausweis-Anfrage erstellen')}
-        start={async () => {
-          const r = await api.identify()
+        start={async (profile) => {
+          const r = await api.identify(profile)
           idRef.current = r.id
           return r
         }}

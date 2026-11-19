@@ -4,6 +4,12 @@ const en: Record<string, string> = {
   Smartphone: 'Smartphone',
   'Valera-Smartphone': 'Valera smartphone',
   Simulation: 'Simulation',
+  'EU-Referenz-Wallet': 'EU reference wallet',
+  "So geht's mit der EU-Referenz-Wallet": 'How it works with the EU reference wallet',
+  'EU-Referenz-Wallet öffnen (PID aus der EU-Testumgebung, ein mDL ist optional).': 'Open the EU reference wallet (PID from the EU test environment; an mDL is optional).',
+  'Den QR-Code mit der Scan-Funktion der Wallet scannen.': "Scan the QR code with the wallet's scan function.",
+  'Die Anfrage ist mit dem Zugangszertifikat (WRPAC) aus der Registrierung beim EU-Registrar signiert und enthält das Registrierungszertifikat (WRPRC). Die Wallet schickt ihre Antwort verschlüsselt zurück.':
+    'The request is signed with the access certificate (WRPAC) from the registration with the EU registrar and contains the registration certificate (WRPRC). The wallet sends its response back encrypted.',
   'Valera-Wallet': 'Valera wallet',
   'Der Wallet-Simulator spricht dieselben Protokoll-Endpunkte an wie eine echte Wallet.': 'The wallet simulator talks to the same protocol endpoints as a real wallet.',
   'Die {wallet} erreicht den PoC über localhost (USB, adb reverse).': 'The {wallet} reaches the PoC via localhost (USB, adb reverse).',

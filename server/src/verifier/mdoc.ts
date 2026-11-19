@@ -72,8 +72,9 @@ function publicFromCoseKey(k: Map<number, unknown>) {
 }
 
 /** SessionTranscript nach OpenID4VP 1.0, B.2.6.1 (unverschlüsselte Antwort: kein JWK-Thumbprint) */
-export function openId4VpSessionTranscript(clientId: string, nonce: string, responseUri: string) {
-  const info = cbor.encode([clientId, nonce, null, responseUri])
+/** OpenID4VP 1.0 Anhang B.2.6.1; jwkThumbprint nur bei verschlüsselter Antwort (direct_post.jwt) */
+export function openId4VpSessionTranscript(clientId: string, nonce: string, responseUri: string, jwkThumbprint?: Buffer) {
+  const info = cbor.encode([clientId, nonce, jwkThumbprint ?? null, responseUri])
   return [null, null, ['OpenID4VPHandover', crypto.createHash('sha256').update(info).digest()]]
 }
 
@@ -105,7 +106,7 @@ export interface MdocResult {
 
 export function verifyMdocPresentation(
   deviceResponseB64u: string,
-  ctx: { clientId: string; nonce: string; responseUri: string; docType?: string; trust?: TrustMode }
+  ctx: { clientId: string; nonce: string; responseUri: string; jwkThumbprint?: Buffer; docType?: string; trust?: TrustMode }
 ): MdocResult {
   const docType = ctx.docType ?? MDL_DOCTYPE
   const checks: Check[] = []
@@ -157,7 +158,7 @@ export function verifyMdocPresentation(
   const deviceSigned = document.get('deviceSigned') as Map<string, any>
   const deviceKey = publicFromCoseKey((mso.get('deviceKeyInfo') as Map<string, any>).get('deviceKey'))
   const deviceSignature = (deviceSigned.get('deviceAuth') as Map<string, any>).get('deviceSignature') as unknown[] | undefined
-  const transcript = openId4VpSessionTranscript(ctx.clientId, ctx.nonce, ctx.responseUri)
+  const transcript = openId4VpSessionTranscript(ctx.clientId, ctx.nonce, ctx.responseUri, ctx.jwkThumbprint)
   const deviceOk = !!deviceSignature && coseVerify(deviceSignature, deviceKey, deviceAuthenticationBytes(transcript, docType, deviceSigned.get('nameSpaces')))
   add('Gerätesignatur (DeviceAuth, nonce/client_id)', deviceOk, 'SessionTranscript nach OpenID4VP 1.0, Anhang B')
 

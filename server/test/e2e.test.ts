@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import crypto from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { after, before, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -18,10 +20,21 @@ const BASE = `http://localhost:${PORT}`
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 let server: ChildProcess
 
+/** Test-Zugangszertifikat für das EU-Profil (statt WRPAC/WRPRC vom EU-Registrar) */
+const euDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eu-access-'))
+function makeEuAccess() {
+  const run = (...args: string[]) => execFileSync('openssl', args, { stdio: 'ignore' })
+  run('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-subj', '/CN=Testamt/O=Testamt/C=AT', '-keyout', path.join(euDir, 'k.pem'), '-out', path.join(euDir, 'c.pem'), '-days', '1')
+  run('pkcs12', '-export', '-inkey', path.join(euDir, 'k.pem'), '-in', path.join(euDir, 'c.pem'), '-passout', 'pass:test', '-out', path.join(euDir, 'wrpac.p12'))
+  fs.writeFileSync(path.join(euDir, 'wrpac.password'), 'test')
+  fs.writeFileSync(path.join(euDir, 'wrprc.jwt'), 'eyJ0eXAiOiJyYy13cnArand0In0.e30.test')
+}
+
 before(async () => {
+  makeEuAccess()
   server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
     cwd: root,
-    env: { ...process.env, API_PORT: String(PORT), PUBLIC_URL: BASE, HOST: '127.0.0.1', RATE_LIMIT_CREATE: '1000', RATE_LIMIT_SIM: '1000' },
+    env: { ...process.env, API_PORT: String(PORT), PUBLIC_URL: BASE, HOST: '127.0.0.1', RATE_LIMIT_CREATE: '1000', RATE_LIMIT_SIM: '1000', EU_ACCESS_DIR: euDir },
     stdio: ['ignore', 'pipe', 'inherit']
   })
   await new Promise<void>((resolve, reject) => {
@@ -29,7 +42,10 @@ before(async () => {
     server.on('exit', (code) => reject(new Error(`Server beendet (${code})`)))
   })
 })
-after(() => void server.kill())
+after(() => {
+  server.kill()
+  fs.rmSync(euDir, { recursive: true, force: true })
+})
 
 const json = (body: unknown) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 const form = (fields: Record<string, string>) => ({ method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields) })
@@ -338,4 +354,36 @@ test('Playground: Deep-Link-Schema nur aus der Liste bekannter Wallet-Schemata',
     const r = await post('/api/playground/presentations', { dcql_query: q, authorization_request_uri: uri })
     assert.ok(r.deepLink.startsWith(uri + '?'), uri)
   }
+})
+
+test('EU-Profil: x509_hash, Registrierungszertifikat und verschlüsselte Antwort (direct_post.jwt)', async () => {
+  const cfg = await get('/api/config')
+  const certDer = new crypto.X509Certificate(fs.readFileSync(path.join(euDir, 'c.pem'))).raw
+  assert.equal(cfg.eudi.clientId, `x509_hash:${crypto.createHash('sha256').update(certDer).digest('base64url')}`)
+
+  const ident = await post('/api/identifications', { wallet_profile: 'eudi' })
+  assert.match(ident.deepLink, /^eudi-openid4vp:\/\/\?client_id=x509_hash%3A/)
+  const jwt = await (await fetch(requestUri(ident.deepLink))).text()
+  const header = JSON.parse(Buffer.from(jwt.split('.')[0], 'base64url').toString())
+  const ro = jwtPayload(jwt)
+  assert.equal(Buffer.from(header.x5c[0], 'base64').equals(certDer), true, 'Request Object mit dem Zugangszertifikat signiert')
+  assert.equal(ro.client_id, cfg.eudi.clientId)
+  assert.equal(ro.response_mode, 'direct_post.jwt')
+  assert.deepEqual(ro.verifier_info, [{ format: 'registration_cert', data: 'eyJ0eXAiOiJyYy13cnArand0In0.e30.test' }])
+  assert.equal(ro.client_metadata.jwks.keys[0].alg, 'ECDH-ES')
+
+  // unverschlüsselte Antwort wird nicht angenommen
+  assert.equal((await fetch(ro.response_uri, form({ error: 'access_denied', state: ro.state }))).status, 400)
+
+  // Simulator: PID (SD-JWT, aud = x509_hash) und mDL (mdoc, Handover mit JWK-Thumbprint), verschlüsselt
+  assert.equal((await fetch(`${BASE}/api/sim/present`, json({ deepLink: ident.deepLink, share: true }))).status, 204)
+  const r = await get(`/api/identifications/${ident.id}`)
+  assert.equal(r.state, 'COMPLETED', r.error)
+  assert.equal(r.licence.source, 'mdl')
+  assert.ok(r.events.some((e: { title: string }) => e.title.includes('entschlüsselt')))
+})
+
+test('Unbekanntes wallet_profile wird abgewiesen', async () => {
+  const res = await fetch(`${BASE}/api/presentations`, json({ wallet_profile: 'irgendwas' }))
+  assert.equal(res.status, 400)
 })

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import express from 'express'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import QRCode from 'qrcode'
+import { loadEuAccess } from './crypto/identities.js'
 import { API_PORT, BASE_PATH, CLIENT_ID, HOST, IS_LOCAL, PUBLIC_URL, RETENTION_MS, SESSION_TTL_MS, TRUST_PROXY } from './config.js'
 import type { ProtocolEvent } from './events.js'
 import { renderApplicationPdf, type ApplicationForm } from './pdf.js'
@@ -186,15 +187,17 @@ app.get('/wallet-callback/app/callback/:flow', (req, res) => {
     )
 })
 
-app.get('/api/config', (_req, res) => {
-  res.json({ publicUrl: PUBLIC_URL, clientId: CLIENT_ID })
-})
+app.get('/api/config', wrap(async (_req, res) => {
+  const eu = await loadEuAccess().catch((e) => (console.warn('[eu] Zugangszertifikat nicht lesbar:', (e as Error).message), undefined))
+  res.json({ publicUrl: PUBLIC_URL, clientId: CLIENT_ID, eudi: eu ? { clientId: eu.clientId, issuer: eu.issuer } : null })
+}))
 
 // ─── Behörden-Service: Identifizierung mit der Wallet (PID) ───────────────────
 
-app.post('/api/identifications', limitCreate, wrap(async (_req, res) => {
-  const r = await createPresentationRequest()
-  if ('error' in r) return res.status(500).json({ error: r.error })
+app.post('/api/identifications', limitCreate, wrap(async (req, res) => {
+  const profile = req.body?.wallet_profile
+  const r = await createPresentationRequest(profile === undefined ? {} : { wallet_profile: profile })
+  if ('error' in r) return res.status(400).json({ error: r.error })
   res.json({ id: r.id, deepLink: r.deepLink, qrSvg: await qr(r.deepLink), expiresInSec: SESSION_TTL_MS / 1000 })
 }))
 

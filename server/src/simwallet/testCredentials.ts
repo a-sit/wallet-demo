@@ -191,7 +191,7 @@ const isoSeconds = (d: Date) => new Tag(d.toISOString().replace(/\.\d+Z$/, 'Z'),
 /** mdoc-Präsentation (DeviceResponse, base64url) für die OpenID4VP-Anfrage; elements = angefragte Datenelemente (ohne: alle) */
 export async function mdocPresentation(
   c: TestCredential,
-  o: { clientId: string; nonce: string; responseUri: string; elements?: string[]; fault?: Fault }
+  o: { clientId: string; nonce: string; responseUri: string; jwkThumbprint?: Buffer; elements?: string[]; fault?: Fault }
 ) {
   const issuer = await issuerOf(c, o.fault)
   const device = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' })
@@ -227,7 +227,7 @@ export async function mdocPresentation(
   const issuerAuth = coseSign1(cbor.encode(tag24(mso)), issuer.privateKey, new Map([[33, Buffer.from(issuer.certB64, 'base64')]]))
 
   const deviceNameSpaces = tag24(new Map())
-  const transcript = openId4VpSessionTranscript(o.clientId, o.fault === 'nonce' ? 'nonce-einer-anderen-anfrage' : o.nonce, o.responseUri)
+  const transcript = openId4VpSessionTranscript(o.clientId, o.fault === 'nonce' ? 'nonce-einer-anderen-anfrage' : o.nonce, o.responseUri, o.jwkThumbprint)
   const deviceSignature = coseSign1(deviceAuthenticationBytes(transcript, c.type, deviceNameSpaces), device.privateKey, new Map(), true)
 
   const response = {

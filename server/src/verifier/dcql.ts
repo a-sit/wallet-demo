@@ -113,7 +113,7 @@ function rows(c: DcqlCredential, claims: Record<string, unknown>, namespaces?: R
 export function evaluate(
   q: DcqlQuery,
   token: unknown,
-  ctx: { clientId: string; nonce: string; responseUri: string; trust: TrustMode }
+  ctx: { clientId: string; nonce: string; responseUri: string; jwkThumbprint?: Buffer; trust: TrustMode }
 ): { credentials: CredentialResult[]; checks: Check[]; valid: boolean } {
   const entries = (token && typeof token === 'object' ? token : {}) as Record<string, unknown>
   const credentials = q.credentials.map((c): CredentialResult => {
