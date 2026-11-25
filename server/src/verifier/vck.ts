@@ -40,12 +40,14 @@ export async function vckCreate(o: {
   requestUriMethod: 'get' | 'post'
   walletUrl: string
   nonce: string
+  /** Playground: abgelaufene Nachweise werden angezeigt, die Zeitprüfung schlägt trotzdem fehl */
+  playground?: boolean
 }): Promise<{ url: string; clientId: string; nonce: string }> {
   const keyPkcs8 = o.signing.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64')
   return call('/sessions', {
     id: o.id, profile: o.profile, clientIdDns: o.clientIdDns, keyPkcs8, x5c: o.signing.x5c, wrprc: o.signing.wrprc,
     dcqlQuery: o.dcqlQuery, requestUri: o.requestUri, responseUri: o.responseUri,
-    requestUriMethod: o.requestUriMethod, walletUrl: o.walletUrl, nonce: o.nonce
+    requestUriMethod: o.requestUriMethod, walletUrl: o.walletUrl, nonce: o.nonce, playground: !!o.playground
   })
 }
 
@@ -61,7 +63,9 @@ export interface VckPresentation {
   namespaces?: Record<string, Record<string, unknown>>
   docType?: string
   issuer?: string
+  vct?: string
   x5c?: string[]
+  raw?: unknown
 }
 export type VckResult =
   | { processed: false; error: string }

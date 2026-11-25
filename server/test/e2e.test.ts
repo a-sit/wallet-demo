@@ -264,6 +264,14 @@ test('Playground: Alternativen und optionale Nachweise (credential_sets)', async
 test('Playground: der Verifier erkennt die simulierten Fehler', async () => {
   const q = { dcql_query: { credentials: [{ ...PID_SDJWT, claims: ['given_name', 'family_name', 'birthdate'].map((c) => ({ path: [c] })) }, MDL] } }
   const failed = (r: any) => r.credentials.flatMap((c: any) => c.checks).concat(r.checks).filter((c: any) => c.ok === false).map((c: any) => c.label)
+  // VERIFIER_ENGINE=vck: VC-K meldet die Fehler mit eigenen Prüfungen; abgelehnte Nachweise liefern keine Angaben
+  const vck: Record<string, string[]> = {
+    expired: ['Nachweis zeitlich gültig (VC-K)', 'Nachweis zeitlich gültig (VC-K)'],
+    untrusted: ['Aussteller vertrauenswürdig', 'Aussteller vertrauenswürdig'],
+    nonce: ['Nonce stimmt (VC-K)', 'Holder-Signatur gültig (Key Binding / DeviceAuth) (VC-K)', 'Antwort gehört zur Anfrage (state) (VC-K)'],
+    tampered: ['Offengelegte Angaben unverändert (Digests, VC-K)', 'Offengelegte Angaben unverändert (Digests, VC-K)'],
+    person: ['Alle Nachweise gehören zur selben Person']
+  }
   for (const [fault, expected] of [
     ['expired', ['Credential nicht abgelaufen', 'MSO gültig']],
     ['untrusted', ['Aussteller vertrauenswürdig', 'Aussteller vertrauenswürdig']],
@@ -274,7 +282,7 @@ test('Playground: der Verifier erkennt die simulierten Fehler', async () => {
   ] as const) {
     const r = await play(q, { fault })
     assert.equal(r.state, 'FAILED', fault)
-    assert.deepEqual(failed(r), expected, fault)
+    assert.deepEqual(failed(r), process.env.VERIFIER_ENGINE === 'vck' ? vck[fault] : expected, fault)
   }
   // offene Prüfung: unbekannter Aussteller ist nur eine Warnung
   const open = await play({ ...q, trust: 'open' }, { fault: 'untrusted' })

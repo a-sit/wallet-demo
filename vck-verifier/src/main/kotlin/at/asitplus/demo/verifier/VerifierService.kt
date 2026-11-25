@@ -86,6 +86,8 @@ class VerifierService {
             else -> ClientIdScheme.CertificateSanDns(chain, body.string("clientIdDns"), responseUri)
         }
         val nonce = body.optString("nonce") ?: java.util.UUID.randomUUID().toString()
+        // Playground: abgelaufene Nachweise trotzdem anzeigen; die Prüfung „zeitlich gültig“ schlägt weiter fehl
+        val playground = (body["playground"] as? JsonPrimitive)?.content == "true"
         val verifier = OpenId4VpVerifier(
             clientIdScheme = clientIdScheme,
             keyMaterial = keyMaterial,
@@ -93,7 +95,7 @@ class VerifierService {
             supportedAlgorithms = setOf(
                 SignatureAlgorithm.ECDSAwithSHA256, SignatureAlgorithm.ECDSAwithSHA384, SignatureAlgorithm.ECDSAwithSHA512,
             ),
-            presentationPolicy = policy,
+            presentationPolicy = if (playground) policy.copy(requireTimeliness = false) else policy,
         )
         val dcql = joseCompliantSerializer.decodeFromJsonElement(DCQLQuery.serializer(), body["dcqlQuery"]!!)
         val wrprc = body.optString("wrprc")
@@ -179,7 +181,17 @@ class VerifierService {
                     .filterKeys { it !in setOf("iss", "iat", "exp", "nbf", "cnf", "vct", "vct#integrity", "status", "_sd_alg") }
                 put("claims", JsonObject(claims))
                 put("issuer", p.credential.credential.issuer)
-                put("x5c", certificateChain(p.credential.sdJwtSigned.jws.jwsHeader.certificateChain?.map { it.encodeToDer() }))
+                put("vct", p.credential.credential.verifiableCredentialType)
+                val chain = p.credential.sdJwtSigned.jws.jwsHeader.certificateChain?.map { it.encodeToDer() }
+                put("x5c", certificateChain(chain))
+                put("raw", buildJsonObject {
+                    put("header", rawJson(p.credential.sdJwtSigned.jws.plainProtectedHeader))
+                    put("payload", rawJson(p.credential.sdJwtSigned.jws.plainPayload))
+                    put("disclosures", JsonArray(p.credential.disclosures.values.map { d ->
+                        buildJsonObject { d.claimName?.let { put("name", it) }; put("value", d.claimValue) }
+                    }))
+                    p.keyBinding?.let { put("keyBinding", rawJson(it.jws.plainPayload)) }
+                })
             }
 
             is ValidatedPresentation.MdocDocument -> {
@@ -196,6 +208,26 @@ class VerifierService {
                 put("claims", JsonObject(namespaces.values.flatMap { it.jsonObject.entries }.associate { it.key to it.value }))
                 val auth = p.credential.issuerSigned.issuerAuth
                 put("x5c", certificateChain(auth.unprotectedHeader?.certificateChain ?: auth.protectedHeader.certificateChain))
+                put("raw", buildJsonObject {
+                    put("docType", p.document.docType)
+                    auth.payload?.let { mso ->
+                        put("mso", buildJsonObject {
+                            put("version", mso.parsedVersion.toString())
+                            put("digestAlgorithm", mso.digest.toString())
+                            put("docType", mso.docType)
+                            put("validityInfo", buildJsonObject {
+                                put("signed", mso.validityInfo.signed.toString())
+                                put("validFrom", mso.validityInfo.validFrom.toString())
+                                put("validUntil", mso.validityInfo.validUntil.toString())
+                            })
+                            put("valueDigests", buildJsonObject {
+                                mso.valueDigests.forEach { (ns, list) -> put(ns, "${list.entries.size} Digests") }
+                            })
+                        })
+                    }
+                    put("issuerSigned", namespaces)
+                    put("deviceAuth", if (p.document.deviceSigned.deviceAuth.deviceSignature != null) "deviceSignature (COSE_Sign1)" else "deviceMac")
+                })
             }
 
             else -> put("format", p::class.simpleName)
@@ -279,6 +311,9 @@ private fun Any?.toJson(): JsonElement = when (this) {
     else -> runCatching { joseCompliantSerializer.encodeToJsonElement(serializer(this::class.java), this) }
         .getOrElse { JsonPrimitive(this.toString()) }
 }
+
+private fun rawJson(bytes: ByteArray): JsonElement =
+    runCatching { joseCompliantSerializer.parseToJsonElement(bytes.decodeToString()) }.getOrElse { JsonPrimitive(bytes.decodeToString()) }
 
 private fun b64(s: String): ByteArray = Base64.getDecoder().decode(s)
 private fun JsonObject.string(key: String) = optString(key) ?: throw IllegalArgumentException("$key fehlt")

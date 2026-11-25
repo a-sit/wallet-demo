@@ -8,10 +8,10 @@ import { loadEuAccess, loadIdentity } from '../crypto/identities.js'
 import { pidDcqlQuery, pidToPerson, type VerifiedPerson } from './pid.js'
 import { verifySdJwtPresentation, type Check } from './sdjwt.js'
 import { mdlDcqlCredential, mdlToLicence, verifyMdocPresentation, type VerifiedLicence } from './mdoc.js'
-import { evaluate, validateDcql, type CredentialResult, type DcqlQuery } from './dcql.js'
+import { evaluate, rows, validateDcql, withResponseChecks, type CredentialResult, type DcqlQuery } from './dcql.js'
 import type { TrustMode } from './trust.js'
 import type { ProtocolEvent } from '../events.js'
-import { toChecks, trustCheck, VCK_ENGINE, vckCreate, vckRequestObject, vckResponse, type VckPresentation } from './vck.js'
+import { toChecks, trustCheck, VCK_ENGINE, vckCreate, vckRequestObject, vckResponse, type VckPresentation, type VckResult } from './vck.js'
 
 /**
  * Lokaler OpenID4VP-1.0-Verifier für die PID.
@@ -64,7 +64,7 @@ export interface PresentationSession {
   /** Playground: freie Abfrage, Ergebnis je Nachweis statt Übernahme in einen Antrag */
   playground?: { trust: TrustMode }
   credentials?: CredentialResult[]
-  /** VERIFIER_ENGINE=vck: Anfrage und Prüfung laufen im VC-K-Dienst (nicht im Playground) */
+  /** VERIFIER_ENGINE=vck: Anfrage und Prüfung laufen im VC-K-Dienst */
   vck?: boolean
 }
 
@@ -156,7 +156,7 @@ export async function createPresentationRequest(o: PresentationOptions = {}, pla
   // Deep-Link selbst bauen: Ktors URLBuilder macht aus "openid4vp://" ein "openid4vp://localhost/"
   const params = new URLSearchParams({ client_id: s.clientId, request_uri: requestUri, request_uri_method: s.requestUriMethod })
   const deepLink = `${scheme}?${params.toString().replace(/\+/g, '%20')}`
-  if (VCK_ENGINE && !playground) {
+  if (VCK_ENGINE) {
     // Encryption-Schlüssel erzeugt VC-K je Anfrage selbst
     s.vck = true
     s.encryption = undefined
@@ -164,7 +164,7 @@ export async function createPresentationRequest(o: PresentationOptions = {}, pla
     const created = await vckCreate({
       id: s.requestId, profile, clientIdDns: RP_HOST,
       signing: eu ? { privateKey: eu.privateKey, x5c: eu.x5c, wrprc: eu.wrprc } : { privateKey: local.privateKey, x5c: [local.certB64] },
-      dcqlQuery: s.dcqlQuery, requestUri, responseUri: responseUri(s), requestUriMethod: s.requestUriMethod, walletUrl: scheme, nonce: s.nonce
+      dcqlQuery: s.dcqlQuery, requestUri, responseUri: responseUri(s), requestUriMethod: s.requestUriMethod, walletUrl: scheme, nonce: s.nonce, playground: !!playground
     })
     if (created.clientId !== s.clientId) throw new Error(`vck-verifier: client_id ${created.clientId} statt ${s.clientId}`)
   }
@@ -403,6 +403,7 @@ async function handleVckResponse(s: PresentationSession, raw: Record<string, unk
     fail(s, r.walletError.error === 'access_denied' ? 'Freigabe in der Wallet abgelehnt' : `Wallet meldet Fehler: ${r.walletError.description ?? r.walletError.error}`)
     return { status: 200, body: {} }
   }
+  if (s.playground) return vckPlayground(s, r)
   log(s, { direction: 'in', title: 'Antwort der Wallet geprüft (VC-K)', detail: { accepted: r.accepted, checks: r.checks, credentials: Object.fromEntries(Object.entries(r.credentials).map(([k, v]) => [k, v.map((p) => ({ accepted: p.accepted, format: p.format, checks: p.checks }))])) } })
 
   const evaluate = (p: VckPresentation | undefined, label: string) => {
@@ -445,4 +446,36 @@ async function handleVckResponse(s: PresentationSession, raw: Record<string, unk
   }
   s.status = 'COMPLETED'
   return { status: 200, body: {} }
+}
+
+/** Playground mit VC-K: Ergebnis je Nachweis wie beim eigenen Verifier (Zeilen, Vertrauen streng/offen, Rohdaten) */
+function vckPlayground(s: PresentationSession, r: Extract<VckResult, { accepted: boolean }>) {
+  const trustMode = s.playground!.trust
+  const credentials = s.dcqlQuery.credentials.map((c): CredentialResult => {
+    const type = c.format === 'mso_mdoc' ? String(c.meta?.doctype_value) : (c.meta?.vct_values ?? []).join(', ')
+    const p = r.credentials[c.id]?.[0]
+    const base = { id: c.id, format: c.format, type, checks: [], rows: [], claims: {} }
+    if (!p) return { ...base, presented: false, valid: false }
+    const checks = toChecks(p.checks)
+    const trust = p.accepted ? trustCheck(p, trustMode) : undefined
+    if (trust) checks.push(trust.check)
+    const claims = p.claims ?? {}
+    return {
+      ...base, presented: true, type: p.vct ?? p.docType ?? type, checks, claims, raw: p.raw,
+      valid: p.accepted && checks.every((k) => k.ok !== false),
+      issuer: trust?.certificate ?? p.issuer,
+      rows: rows(c, claims, p.namespaces),
+      ...(p.accepted ? {} : { error: 'VC-K hat die Präsentation abgelehnt' })
+    }
+  })
+  // „Abfrage erfüllt“ prüft der Node-Server selbst (auch mit offener Vertrauensprüfung)
+  const extra = toChecks(r.checks.filter((k) => k.name !== 'submissionRequirements'))
+  const result = withResponseChecks(s.dcqlQuery, credentials, Object.keys(r.credentials), extra)
+  s.credentials = result.credentials
+  s.checks = [...result.checks, ...result.credentials.flatMap((c) => c.checks.filter((k) => k.ok === false).map((k) => ({ ...k, label: `${c.id}: ${k.label}` })))]
+  log(s, { direction: 'info', title: result.valid ? 'Nachweise geprüft (VC-K): gültig' : 'Nachweise geprüft (VC-K): ungültig', detail: { checks: result.checks, credentials: result.credentials.map((c) => ({ id: c.id, presented: c.presented, valid: c.valid, checks: c.checks })) } })
+  if (!result.valid) fail(s, 'Die Präsentation hat die Prüfung nicht bestanden')
+  else s.status = 'COMPLETED'
+  s.checks = result.checks
+  return result.valid ? { status: 200, body: {} } : { status: 400, body: { error: 'invalid_request' } }
 }

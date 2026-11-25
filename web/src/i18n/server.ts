@@ -139,7 +139,28 @@ const EXACT: Record<string, string> = {
   'Dokument-Hash stimmt nicht mit documentDigests überein': 'Document hash does not match documentDigests',
   'Personendaten (PID)': 'Personal data (PID)',
   'Führerschein (mDL)': 'Driving licence (mDL)',
-  Altersnachweis: 'Proof of age'
+  Altersnachweis: 'Proof of age',
+
+  // ── Prüfschritte von VC-K (VERIFIER_ENGINE=vck, verifier/vck.ts) ──
+  'Antwort lesbar (VC-K)': 'Response readable (VC-K)',
+  'Antwort verschlüsselt (direct_post.jwt) (VC-K)': 'Response encrypted (direct_post.jwt) (VC-K)',
+  'Antwort gehört zur Anfrage (state) (VC-K)': 'Response belongs to the request (state) (VC-K)',
+  'Angefragte Nachweise vollständig (DCQL) (VC-K)': 'Requested credentials complete (DCQL) (VC-K)',
+  'Holder-Nachweis lesbar (VC-K)': 'Holder proof readable (VC-K)',
+  'Holder-Signatur gültig (Key Binding / DeviceAuth) (VC-K)': 'Holder signature valid (key binding / DeviceAuth) (VC-K)',
+  'Holder-Nachweis zeitlich gültig (VC-K)': 'Holder proof within its validity period (VC-K)',
+  'Nonce stimmt (VC-K)': 'Nonce matches (VC-K)',
+  'Audience = client_id (VC-K)': 'Audience = client_id (VC-K)',
+  'Präsentation gebunden (sd_hash / Session Transcript) (VC-K)': 'Presentation bound (sd_hash / session transcript) (VC-K)',
+  'Nachweis lesbar (VC-K)': 'Credential readable (VC-K)',
+  'Signatur des Ausstellers gültig (VC-K)': 'Issuer signature valid (VC-K)',
+  'Aufbau des Nachweises korrekt (VC-K)': 'Credential structure correct (VC-K)',
+  'An den Schlüssel der Wallet gebunden (VC-K)': 'Bound to the wallet key (VC-K)',
+  'Nachweis zeitlich gültig (VC-K)': 'Credential within its validity period (VC-K)',
+  'Pflichtangaben vorhanden (VC-K)': 'Mandatory claims present (VC-K)',
+  'Offengelegte Angaben unverändert (Digests, VC-K)': 'Disclosed claims unaltered (digests, VC-K)',
+  'Kein Ausstellerzertifikat (x5c) im Nachweis': 'No issuer certificate (x5c) in the credential',
+  'VC-K hat die Präsentation abgelehnt': 'VC-K rejected the presentation'
 }
 
 type Replacer = (m: RegExpMatchArray) => string
@@ -153,6 +174,7 @@ const PATTERNS: [RegExp, Replacer][] = [
   [/^bis (\d{4}-\d{2}-\d{2})$/, (m) => `until ${m[1]}`],
   [/^Hash-Verfahren der Disclosures \((.+)\)$/s, (m) => `Hash algorithm of the disclosures (${m[1]})`],
   [/^Offengelegte Attribute passen zum Credential \((\d+)\)$/, (m) => `Disclosed attributes match the credential (${m[1]})`],
+  [/^(\d+) Angaben$/, (m) => `${m[1]} ${m[1] === '1' ? 'claim' : 'claims'}`],
   [/^(\d+) Elemente$/, (m) => `${m[1]} ${m[1] === '1' ? 'element' : 'elements'}`],
   [/^\(Binärdaten, (\d+) Bytes\)$/, (m) => `(binary data, ${m[1]} bytes)`],
   [

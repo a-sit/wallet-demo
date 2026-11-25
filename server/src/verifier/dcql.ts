@@ -92,7 +92,7 @@ export interface CredentialResult {
 const at = (o: unknown, path: (string | number | null)[]) =>
   path.reduce<unknown>((v, k) => (v && typeof v === 'object' && k !== null ? (v as Record<string, unknown>)[k as string] : undefined), o)
 
-function rows(c: DcqlCredential, claims: Record<string, unknown>, namespaces?: Record<string, Record<string, unknown>>): ClaimRow[] {
+export function rows(c: DcqlCredential, claims: Record<string, unknown>, namespaces?: Record<string, Record<string, unknown>>): ClaimRow[] {
   const source = namespaces ?? claims
   const out: ClaimRow[] = (c.claims ?? []).map((cl) => {
     const value = at(source, cl.path)
@@ -134,6 +134,12 @@ export function evaluate(
     }
   })
 
+  return withResponseChecks(q, credentials, Object.keys(entries))
+}
+
+/** Prüfungen über alle Nachweise einer Antwort: Abfrage erfüllt, nichts Unangefragtes, dieselbe Person */
+export function withResponseChecks(q: DcqlQuery, credentials: CredentialResult[], deliveredIds: string[], extra: Check[] = []) {
+  const entries = Object.fromEntries(deliveredIds.map((id) => [id, true]))
   const presented = new Set(credentials.filter((c) => c.presented).map((c) => c.id))
   const checks: Check[] = [
     {
@@ -152,6 +158,7 @@ export function evaluate(
     .map((c) => [norm(c.claims.family_name), norm(c.claims.given_name), norm(c.claims.birthdate ?? c.claims.birth_date).slice(0, 10)].join('|'))
   if (people.length > 1) checks.push({ label: 'Alle Nachweise gehören zur selben Person', ok: new Set(people).size === 1, detail: 'Vorname, Familienname, Geburtsdatum' })
 
+  checks.push(...extra)
   const valid = checks.every((c) => c.ok !== false) && credentials.every((c) => !c.presented || c.valid)
   return { credentials, checks, valid }
 }
