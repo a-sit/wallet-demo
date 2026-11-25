@@ -1,0 +1,30 @@
+# systemd-Unit für den VC-K-Verifier (Prototyp): /etc/systemd/system/vck-verifier.service
+# Voraussetzung: Java 17 (z. B. openjdk-17-jre-headless), Distribution aus `vck-verifier/gradlew installDist`
+# unter /opt/wallet-demo/vck-verifier, Benutzer wallet-demo.
+# Den Node-Dienst schaltet erst ein Drop-in um, z. B. /etc/systemd/system/wallet-demo.service.d/vck.conf:
+#   [Unit]
+#   Wants=vck-verifier.service
+#   After=vck-verifier.service
+#   [Service]
+#   Environment=VERIFIER_ENGINE=vck
+# Zurück zum eigenen Verifier: Drop-in löschen, systemctl daemon-reload, systemctl restart wallet-demo.
+[Unit]
+Description=VC-K-Verifier für den Wallet-Signatur-PoC (nur lokal)
+After=network.target
+
+[Service]
+Type=simple
+User=wallet-demo
+WorkingDirectory=/opt/wallet-demo/vck-verifier
+# nur auf 127.0.0.1, ausschließlich für den Node-Dienst
+Environment=VCK_VERIFIER_PORT=3002
+Environment=JAVA_OPTS=-Xmx256m
+ExecStart=/opt/wallet-demo/vck-verifier/bin/vck-verifier
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

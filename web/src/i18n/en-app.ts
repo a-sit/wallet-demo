@@ -41,6 +41,11 @@ const en: Record<string, string> = {
   'Signaturprüfung und Einbringen': 'Signature validation and submission',
   'Antrag starten': 'Start application',
   'Getestet mit der Valera-Wallet': 'Tested with the Valera wallet',
+  'Nur ein Demoservice.': 'A demo service only.',
+  'Er zeigt, wie Behörden-Services die Wallet einbinden können, und ist nicht zum Testen von Wallets gedacht. Für Tests mit Valera oder dem Valera Issuer und Verifier nutzen Sie bitte die offizielle Seite der A-SIT Plus:':
+    'It shows how public-sector services can integrate the wallet and is not intended for testing wallets. For tests with Valera or the Valera issuer and verifier, please use the official A-SIT Plus page:',
+  'Der Verifier der Demo basiert auf': "The demo's verifier is based on",
+  ', der Open-Source-Bibliothek der A-SIT Plus für digitale Nachweise.': ', the open-source library by A-SIT Plus for digital credentials.',
   'Für Behörden: Integrationsleitfaden': 'For public authorities: integration guide',
 
   // ── Antrag: Fortschritt (Stepper.tsx) ──

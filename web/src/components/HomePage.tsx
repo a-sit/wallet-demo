@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, FileSignature, Fingerprint, FlaskConical, PenLine, Smartphone } from 'lucide-react'
+import { ArrowRight, BookOpen, FileSignature, Fingerprint, FlaskConical, PenLine, Smartphone, TriangleAlert } from 'lucide-react'
 import { t } from '../i18n'
 
 // Deutsche Texte sind die Übersetzungsschlüssel; übersetzt wird beim Rendern mit t()
@@ -49,6 +49,23 @@ export function HomePage() {
         </h1>
         <p className="mt-5 text-lg text-slate-600 dark:text-slate-400">
           {t('Drei Use-Cases zeigen, wie ein Behörden-Service die europäische digitale Identitäts-Wallet einbindet. Jeder läuft mit einer Wallet auf dem Smartphone oder mit dem eingebauten Simulator.')}
+        </p>
+      </div>
+
+      <div role="note" className="mt-8 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+        <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+        <p>
+          <strong>{t('Nur ein Demoservice.')}</strong>{' '}
+          {t('Er zeigt, wie Behörden-Services die Wallet einbinden können, und ist nicht zum Testen von Wallets gedacht. Für Tests mit Valera oder dem Valera Issuer und Verifier nutzen Sie bitte die offizielle Seite der A-SIT Plus:')}{' '}
+          <a href="https://wallet.a-sit.plus/" target="_blank" rel="noopener noreferrer" className="font-semibold underline decoration-amber-400 underline-offset-2">
+            wallet.a-sit.plus
+          </a>
+          {'. '}
+          {t('Der Verifier der Demo basiert auf')}{' '}
+          <a href="https://github.com/a-sit-plus/vck" target="_blank" rel="noopener noreferrer" className="font-semibold underline decoration-amber-400 underline-offset-2">
+            VC-K
+          </a>
+          {t(', der Open-Source-Bibliothek der A-SIT Plus für digitale Nachweise.')}
         </p>
       </div>
 

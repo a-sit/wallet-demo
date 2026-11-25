@@ -473,10 +473,10 @@ app.post('/oid4vp/request/:id', wrap(async (req, res) => {
   res.type('application/oauth-authz-req+jwt').send(jwt)
 }))
 
-app.post('/oid4vp/response/:id', (req, res) => {
-  const r = handlePresentationResponse(req.params.id, req.body)
+app.post('/oid4vp/response/:id', wrap(async (req, res) => {
+  const r = await handlePresentationResponse(req.params.id, req.body)
   res.status(r.status).json(r.body)
-})
+}))
 
 // /da/…: frühere Pfade, für bereits erzeugte Anfragen weiter erreichbar
 app.get(['/sign/createSignRequest/:id', '/da/createSignRequest/:id', '/da/request/:id'], wrap(async (req, res) => {

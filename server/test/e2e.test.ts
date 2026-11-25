@@ -130,8 +130,10 @@ test('PID eines unbekannten Ausstellers (selbst signiertes Zertifikat) wird abge
     return `${input}.${crypto.sign('sha256', Buffer.from(input), { key, dsaEncoding: 'ieee-p1363' }).toString('base64url')}`
   }
   const now = Math.floor(Date.now() / 1000)
-  // formal einwandfrei: Signatur, Zertifikat mit dem Namen des echten Ausstellers, Key Binding – nur eben selbst ausgestellt
-  const sdJwt = sign({ typ: 'dc+sd-jwt', x5c: [Buffer.from(cert.rawData).toString('base64')] }, { iss: 'https://wallet-issuer.a-sit.plus', vct: 'urn:eudi:pid:1', iat: now, exp: now + 3600, given_name: 'Eve', family_name: 'Fälscherin', birthdate: '1980-01-01', cnf: { jwk: crypto.createPublicKey(key).export({ format: 'jwk' }) } }) + '~'
+  // formal einwandfrei: Signatur, Zertifikat mit dem Namen des echten Ausstellers, Key Binding, alle angefragten
+  // Angaben – nur eben selbst ausgestellt
+  const claims = { given_name: 'Eve', family_name: 'Fälscherin', birthdate: '1980-01-01', place_of_birth: { locality: 'Wien' }, nationalities: ['AT'], address: { locality: 'Wien' } }
+  const sdJwt = sign({ typ: 'dc+sd-jwt', x5c: [Buffer.from(cert.rawData).toString('base64')] }, { iss: 'https://wallet-issuer.a-sit.plus', vct: 'urn:eudi:pid:1', iat: now, exp: now + 3600, ...claims, cnf: { jwk: crypto.createPublicKey(key).export({ format: 'jwk' }) } }) + '~'
   const kb = sign({ typ: 'kb+jwt' }, { iat: now, nonce: ro.nonce, aud: ro.client_id, sd_hash: sha256(sdJwt) })
 
   assert.equal((await fetch(ro.response_uri, form({ vp_token: JSON.stringify({ pid: [sdJwt + kb] }), state: ro.state }))).status, 400)

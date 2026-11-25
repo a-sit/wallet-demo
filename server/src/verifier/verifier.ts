@@ -11,6 +11,7 @@ import { mdlDcqlCredential, mdlToLicence, verifyMdocPresentation, type VerifiedL
 import { evaluate, validateDcql, type CredentialResult, type DcqlQuery } from './dcql.js'
 import type { TrustMode } from './trust.js'
 import type { ProtocolEvent } from '../events.js'
+import { toChecks, trustCheck, VCK_ENGINE, vckCreate, vckRequestObject, vckResponse, type VckPresentation } from './vck.js'
 
 /**
  * Lokaler OpenID4VP-1.0-Verifier für die PID.
@@ -63,6 +64,8 @@ export interface PresentationSession {
   /** Playground: freie Abfrage, Ergebnis je Nachweis statt Übernahme in einen Antrag */
   playground?: { trust: TrustMode }
   credentials?: CredentialResult[]
+  /** VERIFIER_ENGINE=vck: Anfrage und Prüfung laufen im VC-K-Dienst (nicht im Playground) */
+  vck?: boolean
 }
 
 /**
@@ -148,14 +151,27 @@ export async function createPresentationRequest(o: PresentationOptions = {}, pla
     profile, clientId: eu?.clientId ?? CLIENT_ID, encryption,
     playground
   }
+  const requestUri = `${PUBLIC_URL}/oid4vp/request/${s.requestId}`
+  const scheme = o.authorization_request_uri ?? (profile === 'eudi' ? 'eudi-openid4vp://' : 'openid4vp://')
+  // Deep-Link selbst bauen: Ktors URLBuilder macht aus "openid4vp://" ein "openid4vp://localhost/"
+  const params = new URLSearchParams({ client_id: s.clientId, request_uri: requestUri, request_uri_method: s.requestUriMethod })
+  const deepLink = `${scheme}?${params.toString().replace(/\+/g, '%20')}`
+  if (VCK_ENGINE && !playground) {
+    // Encryption-Schlüssel erzeugt VC-K je Anfrage selbst
+    s.vck = true
+    s.encryption = undefined
+    const local = await rp()
+    const created = await vckCreate({
+      id: s.requestId, profile, clientIdDns: RP_HOST,
+      signing: eu ? { privateKey: eu.privateKey, x5c: eu.x5c, wrprc: eu.wrprc } : { privateKey: local.privateKey, x5c: [local.certB64] },
+      dcqlQuery: s.dcqlQuery, requestUri, responseUri: responseUri(s), requestUriMethod: s.requestUriMethod, walletUrl: scheme, nonce: s.nonce
+    })
+    if (created.clientId !== s.clientId) throw new Error(`vck-verifier: client_id ${created.clientId} statt ${s.clientId}`)
+  }
   sessions.set(s.id, s)
   byRequestId.set(s.requestId, s)
-  const requestUri = `${PUBLIC_URL}/oid4vp/request/${s.requestId}`
-  const params = new URLSearchParams({ client_id: s.clientId, request_uri: requestUri, request_uri_method: s.requestUriMethod })
-  const scheme = o.authorization_request_uri ?? (profile === 'eudi' ? 'eudi-openid4vp://' : 'openid4vp://')
-  const deepLink = `${scheme}?${params.toString().replace(/\+/g, '%20')}`
   log(s, {
-    direction: 'info', title: 'Präsentationsanfrage angelegt',
+    direction: 'info', title: s.vck ? 'Präsentationsanfrage angelegt (VC-K)' : 'Präsentationsanfrage angelegt',
     detail: { wallet_profile: profile, client_id: s.clientId, request_uri: requestUri, request_uri_method: s.requestUriMethod, intended_use_id: s.intendedUseId, dcql_query: s.dcqlQuery }
   })
   return { id: s.id, deepLink, requestUri, nonce: s.nonce }
@@ -195,6 +211,14 @@ export async function presentationRequestObject(requestId: string, method: 'get'
   const s = expire(byRequestId.get(requestId))
   if (!s || !OPEN.includes(s.status)) return undefined
   if (method === 'post' && s.requestUriMethod !== 'post') return undefined
+  if (s.vck) {
+    const jwt = await vckRequestObject(s.requestId, walletNonce)
+    if (!jwt) return undefined
+    if (s.status === 'WAITING_FOR_WALLET') s.status = 'WALLET_CONNECTED'
+    const payload = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString('utf8'))
+    log(s, { direction: 'in', title: 'Wallet hat Request Object abgerufen (VC-K)', detail: payload })
+    return jwt
+  }
   const eu = s.profile === 'eudi' ? await loadEuAccess() : undefined
   const local = await rp()
   const { privateKey, x5c } = eu ?? { privateKey: local.privateKey, x5c: [local.certB64] }
@@ -242,9 +266,10 @@ function fail(s: PresentationSession, error: string) {
 }
 
 /** Authorization Response (direct_post) der Wallet */
-export function handlePresentationResponse(requestId: string, raw: Record<string, unknown>) {
+export async function handlePresentationResponse(requestId: string, raw: Record<string, unknown>) {
   const s = expire(byRequestId.get(requestId))
   if (!s) return { status: 404, body: { error: 'unknown_session' } }
+  if (s.vck) return handleVckResponse(s, raw)
   // direct_post.jwt: alle Parameter stecken verschlüsselt in "response"
   let fields: Record<string, unknown> = raw ?? {}
   if (s.encryption && OPEN.includes(s.status)) {
@@ -348,4 +373,76 @@ export function handlePresentationResponse(requestId: string, raw: Record<string
     console.warn(e)
     return { status: 400, body: { error: 'invalid_request' } }
   }
+}
+
+/**
+ * VERIFIER_ENGINE=vck: VC-K entschlüsselt und prüft die Antwort (state, Nonce, Audience, Signaturen, Disclosures,
+ * Session Transcript, DCQL). Hier folgen nur noch Ausstellervertrauen, Personendaten und der Abgleich PID ↔ mDL.
+ */
+async function handleVckResponse(s: PresentationSession, raw: Record<string, unknown>) {
+  if (!OPEN.includes(s.status)) {
+    log(s, { direction: 'in', title: 'Antwort verworfen', detail: { grund: `Sitzung ist bereits ${s.status}` } })
+    return { status: 400, body: { error: 'invalid_request' } }
+  }
+  // wie im eigenen Verifier: auf eine direct_post.jwt-Anfrage nur verschlüsselte Antworten annehmen, auch keine
+  // unverschlüsselte Fehlermeldung (VC-K würde sie als Fehlerantwort der Wallet verarbeiten und die Sitzung beenden)
+  const encrypted = typeof raw?.response === 'string'
+  if (s.profile === 'eudi' && !encrypted) {
+    log(s, { direction: 'in', title: 'Antwort verworfen', detail: { grund: 'unverschlüsselte Antwort, erwartet direct_post.jwt' } })
+    return { status: 400, body: { error: 'invalid_request' } }
+  }
+  const r = await vckResponse(s.requestId, raw)
+  if (r?.processed && encrypted) log(s, { direction: 'in', title: 'Verschlüsselte Antwort entschlüsselt (direct_post.jwt, VC-K)' })
+  if (!r || !r.processed) {
+    // nicht zuordenbar (state, Verschlüsselung, Format): Sitzung bleibt offen, wie im eigenen Verifier
+    log(s, { direction: 'in', title: 'Antwort verworfen (VC-K)', detail: { grund: r && !r.processed ? r.error : 'Sitzung im VC-K-Dienst unbekannt' } })
+    return { status: 400, body: { error: 'invalid_request' } }
+  }
+  if (r.walletError) {
+    log(s, { direction: 'in', title: 'Antwort der Wallet erhalten (VC-K)', detail: r.walletError })
+    fail(s, r.walletError.error === 'access_denied' ? 'Freigabe in der Wallet abgelehnt' : `Wallet meldet Fehler: ${r.walletError.description ?? r.walletError.error}`)
+    return { status: 200, body: {} }
+  }
+  log(s, { direction: 'in', title: 'Antwort der Wallet geprüft (VC-K)', detail: { accepted: r.accepted, checks: r.checks, credentials: Object.fromEntries(Object.entries(r.credentials).map(([k, v]) => [k, v.map((p) => ({ accepted: p.accepted, format: p.format, checks: p.checks }))])) } })
+
+  const evaluate = (p: VckPresentation | undefined, label: string) => {
+    if (!p) return undefined
+    const checks = toChecks(p.checks)
+    const trust = trustCheck(p)
+    checks.push(trust.check)
+    return { checks, valid: p.accepted && trust.check.ok !== false, claims: p.claims ?? {}, issuer: trust.certificate ?? p.issuer, label }
+  }
+  const responseChecks = toChecks(r.checks)
+  const pid = evaluate(r.credentials.pid?.[0], 'PID')
+  if (!pid) {
+    s.checks = responseChecks
+    fail(s, 'vp_token enthält keine gültige PID')
+    return { status: 400, body: { error: 'invalid_request' } }
+  }
+  s.checks = [...responseChecks, ...pid.checks]
+  s.claims = pid.claims
+  s.issuer = pid.issuer
+  log(s, { direction: 'info', title: pid.valid ? 'PID geprüft: gültig' : 'PID geprüft: ungültig', detail: { checks: pid.checks, claims: pid.claims } })
+  if (!pid.valid || !r.accepted) {
+    fail(s, 'Die PID-Präsentation ist ungültig')
+    return { status: 400, body: { error: 'invalid_request' } }
+  }
+  s.person = pidToPerson(pid.claims)
+
+  const mdl = evaluate(r.credentials.mdl?.[0], 'mDL')
+  if (mdl) {
+    const licence = mdlToLicence(mdl.claims)
+    const norm = (v?: string) => (v ?? '').normalize('NFC').trim().toLocaleLowerCase('de')
+    const samePerson = norm(licence.familyName) === norm(s.person.familyName) && norm(licence.givenName) === norm(s.person.givenName) && licence.birthDate === s.person.birthdate
+    mdl.checks.push({ label: 'Selbe Person wie in der PID', ok: samePerson, detail: 'Vorname, Familienname, Geburtsdatum' })
+    s.checks = [...s.checks, ...mdl.checks.map((c) => ({ ...c, label: `mDL: ${c.label}` }))]
+    log(s, { direction: 'info', title: mdl.valid && samePerson ? 'mDL geprüft: gültig' : 'mDL geprüft: ungültig', detail: { checks: mdl.checks, claims: mdl.claims } })
+    if (!mdl.valid || !samePerson) {
+      fail(s, samePerson ? 'Die mDL-Präsentation ist ungültig' : 'mDL und PID gehören nicht zur selben Person')
+      return { status: 400, body: { error: 'invalid_request' } }
+    }
+    s.licence = licence
+  }
+  s.status = 'COMPLETED'
+  return { status: 200, body: {} }
 }

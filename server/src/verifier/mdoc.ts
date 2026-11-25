@@ -31,7 +31,8 @@ export function mdlDcqlCredential() {
 
 // ─── CBOR / COSE ──────────────────────────────────────────────────────────────
 
-export const cbor = new Encoder({ useRecords: false, tagUint8Array: false, variableMapSize: true })
+// useTag259ForMaps: false – sonst umhüllt cbor-x jede Map mit Tag 259; COSE-Header und MSO sind schlichte CBOR-Maps
+export const cbor = new Encoder({ useRecords: false, tagUint8Array: false, variableMapSize: true, useTag259ForMaps: false } as ConstructorParameters<typeof Encoder>[0])
 const decoder = new Decoder({ useRecords: false, mapsAsObjects: false })
 export const decodeCbor = (b: Uint8Array) => decoder.decode(b)
 
